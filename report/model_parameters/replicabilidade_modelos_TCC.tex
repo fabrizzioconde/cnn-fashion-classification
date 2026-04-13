@@ -1,0 +1,27 @@
+
+\section{Replicabilidade dos Experimentos Computacionais}
+
+Os experimentos foram conduzidos utilizando Repeated Holdout com 10 sementes aleatórias fixas
+($SEED \in \{0,\ldots,9\}$). Foram avaliados 13 modelos, incluindo CNNs treinadas do zero e modelos
+de Transfer Learning.
+
+\begin{longtable}{clllllcccccc}
+\caption{Configuração dos modelos e parâmetros utilizados}\\
+\hline
+ID & Modelo & Tipo & Backbone & Pesos & Img & Batch & Ep & LR & Preprocess & Aug \\
+\hline
+1 & cnn\_from\_scratch & CNN & ConvNet & -- & 150 & 32 & 50 & $5e{-4}$ & Rescale & CNN \\
+2 & cnn\_from\_scratch\_lr1e4 & CNN & ConvNet & -- & 150 & 32 & 50 & $1e{-4}$ & Rescale & CNN \\
+3 & mobilenetv2 & TL & MobileNetV2 & ImageNet & 150 & 32 & 30 & $1e{-4}$ & MNv2 & TL \\
+4 & efficientnetb0 & TL & EfficientNetB0 & ImageNet & 150 & 32 & 30 & $1e{-4}$ & EffNet & TL \\
+5 & efficientnetb1 & TL & EfficientNetB1 & ImageNet & 150 & 32 & 30 & $1e{-4}$ & EffNet & TL \\
+6 & efficientnetb2 & TL & EfficientNetB2 & ImageNet & 150 & 32 & 30 & $1e{-4}$ & EffNet & TL \\
+7 & resnet50 & TL & ResNet50 & ImageNet & 150 & 32 & 30 & $1e{-4}$ & ResNet & TL \\
+8 & densenet121 & TL & DenseNet121 & ImageNet & 150 & 32 & 30 & $1e{-4}$ & DenseNet & TL \\
+9 & mobilenetv3small & TL & MobileNetV3Small & ImageNet & 150 & 32 & 30 & $1e{-4}$ & MNv3 & TL \\
+10 & mobilenetv3large & TL & MobileNetV3Large & ImageNet & 150 & 32 & 30 & $1e{-4}$ & MNv3 & TL \\
+11 & nasnetmobile & TL & NASNetMobile & ImageNet & 150 & 32 & 30 & $1e{-4}$ & NASNet & TL \\
+12 & inceptionv3 & TL & InceptionV3 & ImageNet & 299 & 16 & 30 & $1e{-4}$ & Inception & TL \\
+13 & xception & TL & Xception & ImageNet & 299 & 16 & 30 & $1e{-4}$ & Xception & TL \\
+\hline
+\end{longtable}

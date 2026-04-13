@@ -1,0 +1,1558 @@
+% ==============================================================
+% RELATÓRIO: 13 MODELOS DE REDES NEURAIS CONVOLUCIONAIS
+% Tarefa de Classificação de Imagens de Moda (Bolsas x Calças)
+% ==============================================================
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{adjustbox}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{underscore}  % permite _ em modo texto sem escapar
+
+\geometry{
+  a4paper,
+  left=2.5cm, right=2.5cm,
+  top=3cm,    bottom=3cm
+}
+
+\graphicspath{%
+  {../results/plots/}%
+  {model_parameters/}%
+}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!70!black,
+  urlcolor=blue!70!black,
+  citecolor=blue!70!black,
+  pdftitle={Relatório: 13 Modelos de Redes Neurais Convolucionais},
+  pdfauthor={Anna Victoria}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small Redes Neurais Convolucionais na Moda}
+\lhead{\small Anna Victoria --- TCC}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\titleformat{\section}{\large\bfseries\color{blue!70!black}}{}{0em}{\thesection\quad}
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{\thesubsection\quad}
+
+% Comando auxiliar para inserir tabela de rodadas com ajuste de largura
+\newcommand{\tabelarodadas}[2]{%
+  \begin{table}[H]
+    \centering
+    \caption{#1}
+    \begin{adjustbox}{max width=\textwidth, center}
+      \input{#2}
+    \end{adjustbox}
+  \end{table}%
+}
+
+% Comando auxiliar para inserir tabela de resumo
+\newcommand{\tabelaresumo}[2]{%
+  \begin{table}[H]
+    \centering
+    \caption{#1}
+    \begin{adjustbox}{max width=\textwidth, center}
+      \input{#2}
+    \end{adjustbox}
+  \end{table}%
+}
+
+% Ambiente para bloco de parâmetros
+\newenvironment{parametros}{%
+  \begin{table}[H]
+  \centering
+  \small
+  \begin{tabular}{ll}
+  \toprule
+  \textbf{Parâmetro} & \textbf{Valor} \\
+  \midrule
+}{%
+  \bottomrule
+  \end{tabular}
+  \end{table}
+}
+
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+% ==============================================================
+\begin{document}
+% ==============================================================
+
+% ------ CAPA --------------------------------------------------
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\Huge\bfseries\color{blue!70!black}
+    Redes Neurais Convolucionais\\[0.4em]
+    na Classificação de Moda\\[0.4em]
+    \large\normalfont\color{black}
+    Relatório Técnico: Avaliação dos 13~Modelos\par}
+  \vspace{1.5cm}
+  {\large\bfseries Anna Victoria\par}
+  \vspace{0.5cm}
+  {\large Trabalho de Conclusão de Curso\par}
+  \vspace{2cm}
+  \begin{center}
+    \begin{tabular}{lp{9cm}}
+      \toprule
+      \textbf{Tarefa} & Classificação binária: Bolsas \emph{vs.} Calças \\
+      \textbf{Protocolo} & Repeated Holdout (10~sementes) \\
+      \textbf{Modelos} & 13~(2~CNN do zero + 11~Transfer Learning) \\
+      \textbf{Framework} & TensorFlow / Keras \\
+      \textbf{Plataforma} & Google Colab (GPU) \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \vfill
+  {\large\today\par}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+% ==============================================================
+\section{Introdução}
+% ==============================================================
+
+Este relatório documenta a avaliação experimental de \textbf{13 modelos de Redes Neurais
+Convolucionais (CNNs)} aplicados à classificação binária de imagens de moda, distinguindo
+\textbf{bolsas} de \textbf{calças}. Os modelos compreendem duas categorias:
+
+\begin{itemize}
+  \item \textbf{CNNs treinadas do zero} (\emph{from scratch}): redes convolucionais projetadas
+        e treinadas exclusivamente com os dados da tarefa, sem aproveitamento de pesos pré-treinados.
+        Dois valores de taxa de aprendizado foram avaliados: $5\times10^{-4}$ e $1\times10^{-4}$.
+  \item \textbf{Transfer Learning (TL)}: 11~modelos com \emph{backbones} pré-treinados na
+        base ImageNet, cujas camadas convolucionais são congeladas e apenas a cabeça de
+        classificação é treinada nos dados da tarefa.
+\end{itemize}
+
+O objetivo é identificar qual arquitetura oferece o melhor compromisso entre desempenho
+preditivo (acurácia, precisão, recall e F1-score) e custo computacional (tempo de treinamento
+e de inferência).
+
+% ==============================================================
+\section{Fundamentos Matemáticos}
+\label{sec:fundamentos}
+% ==============================================================
+
+Esta seção apresenta as principais funções e expressões matemáticas que fundamentam
+o funcionamento das CNNs avaliadas neste trabalho, desde a operação primitiva de
+convolução até o otimizador e as funções estatísticas de replicabilidade.
+
+% ------ Convolução 2D ------------------------------------------
+\subsection{Operação de Convolução 2D}
+
+A operação central de uma CNN é a \textbf{convolução discreta 2D}, que desliza um filtro
+(kernel) $K$ de dimensão $k_h \times k_w$ sobre uma imagem de entrada $I$ e produz um
+mapa de características:
+
+\begin{equation}
+  (I * K)[i,j] = \sum_{m=0}^{k_h-1}\sum_{n=0}^{k_w-1} I[i+m,\;j+n]\cdot K[m,n]
+  \label{eq:conv2d}
+\end{equation}
+
+onde $i$ e $j$ indexam a posição espacial no mapa de saída. Em redes com múltiplos
+canais de entrada $C$ e $N$ filtros paralelos, a equação se generaliza para:
+
+\begin{equation}
+  Z^{(n)}[i,j]
+  = \sum_{c=1}^{C}\sum_{m=0}^{k_h-1}\sum_{n'=0}^{k_w-1}
+    X^{(c)}[i+m,\;j+n']\cdot K^{(n,c)}[m,n'] + b^{(n)}
+  \label{eq:conv2d_multi}
+\end{equation}
+
+onde $b^{(n)}$ é o viés do $n$-ésimo filtro. Neste projeto, todos os filtros
+convolucionais utilizam núcleos $3\times3$.
+
+% ------ Funções de Ativação ------------------------------------
+\subsection{Funções de Ativação}
+
+\subsubsection{ReLU --- \textit{Rectified Linear Unit}}
+
+Após cada camada convolucional, aplica-se a função de ativação \textbf{ReLU},
+que introduz não-linearidade ao modelo zerando todos os valores negativos:
+
+\begin{equation}
+  \text{ReLU}(x) = \max(0,\,x)
+  \label{eq:relu}
+\end{equation}
+
+A ReLU é computacionalmente eficiente e mitiga o problema do gradiente desvanecente
+em redes profundas, sendo a ativação padrão em todas as camadas ocultas dos 13 modelos.
+
+\subsubsection{Softmax --- Conversão para Probabilidade}
+
+A camada de saída de \textbf{todos os 13 modelos} utiliza a função \textbf{Softmax},
+que converte o vetor de logits $\mathbf{z} = (z_1, z_2, \ldots, z_C)$ em uma
+distribuição de probabilidade sobre as $C$ classes:
+
+\begin{equation}
+  \hat{p}_c = \operatorname{softmax}(z_c)
+            = \frac{e^{z_c}}{\displaystyle\sum_{j=1}^{C} e^{z_j}},
+  \qquad c = 1, \ldots, C
+  \label{eq:softmax}
+\end{equation}
+
+A Softmax garante que $\hat{p}_c \in (0,1)$ para todo $c$ e que
+$\sum_{c=1}^{C}\hat{p}_c = 1$. Para a tarefa binária deste trabalho
+($C = 2$: bolsas e calças), as duas probabilidades complementares são:
+
+\begin{equation}
+  \hat{p}_{\text{bolsa}} = \frac{e^{z_1}}{e^{z_1}+e^{z_2}},
+  \qquad
+  \hat{p}_{\text{calça}} = \frac{e^{z_2}}{e^{z_1}+e^{z_2}}
+  \label{eq:softmax_bin}
+\end{equation}
+
+A classe predita é determinada por $\hat{y} = \arg\max_{c}\,\hat{p}_c$.
+
+% ------ Pooling ------------------------------------------------
+\subsection{Operações de Pooling}
+
+\subsubsection{Max Pooling}
+
+O \textbf{Max Pooling} reduz a dimensão espacial do mapa de características
+retendo o valor máximo em cada janela $p\times p$ (neste projeto $p=2$) com
+passo (\emph{stride}) igual a $p$:
+
+\begin{equation}
+  y[i,j] = \max_{\substack{0\le m<p\\0\le n<p}}\; x[p\,i+m,\;p\,j+n]
+  \label{eq:maxpool}
+\end{equation}
+
+Cada bloco Conv+MaxPool na CNN do zero reduz pela metade a resolução espacial
+($H\times W\to\tfrac{H}{2}\times\tfrac{W}{2}$), expandindo progressivamente
+o campo receptivo da rede.
+
+\subsubsection{Global Average Pooling (GAP)}
+
+Nos modelos de Transfer Learning, o backbone produz um tensor
+$F\in\mathbb{R}^{H\times W\times C}$. A camada \texttt{GlobalAveragePooling2D}
+colapsa as dimensões espaciais calculando a média por canal, gerando um
+vetor $\mathbf{g}\in\mathbb{R}^{C}$:
+
+\begin{equation}
+  g_c = \frac{1}{H\cdot W}\sum_{i=1}^{H}\sum_{j=1}^{W} F[i,j,c],
+  \qquad c = 1,\ldots,C
+  \label{eq:gap}
+\end{equation}
+
+O GAP elimina a necessidade de camadas densas volumosas sobre o mapa de
+características e atua como regularizador natural, reduzindo o risco de
+\emph{overfitting}.
+
+% ------ Função de Perda ----------------------------------------
+\subsection{Função de Perda: Entropia Cruzada Categórica}
+
+Todos os modelos são treinados minimizando a \textbf{Entropia Cruzada
+Categórica} (\emph{Categorical Cross-Entropy}), que mede a divergência
+entre a distribuição real $\mathbf{y}$ (codificada em \emph{one-hot})
+e a distribuição prevista $\hat{\mathbf{p}}$ (saída da Softmax):
+
+\begin{equation}
+  \mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\sum_{c=1}^{C}
+                y_{i,c}\,\log\!\left(\hat{p}_{i,c}\right)
+  \label{eq:crossentropy}
+\end{equation}
+
+onde $N$ é o número de amostras no mini-batch, $y_{i,c}\in\{0,1\}$ indica se
+a amostra $i$ pertence à classe $c$, e $\hat{p}_{i,c}$ é a probabilidade
+prevista pela Softmax. Como $\mathbf{y}$ é \emph{one-hot}, apenas o termo
+da classe verdadeira $c_i^*$ contribui para a soma:
+
+\begin{equation}
+  \mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\log\!\left(\hat{p}_{i,\,c_i^*}\right)
+  \label{eq:crossentropy_simp}
+\end{equation}
+
+A perda é minimizada quando $\hat{p}_{i,c_i^*}\to 1$, isto é, quando o modelo
+atribui probabilidade máxima à classe correta. O Early Stopping monitora
+$\mathcal{L}$ na faixa de treino com \texttt{patience}~$= 5$.
+
+% ------ Adam ---------------------------------------------------
+\subsection{Otimizador Adam}
+
+O treinamento utiliza o otimizador \textbf{Adam}
+(\emph{Adaptive Moment Estimation}) \cite{kingma2014adam}, que adapta
+individualmente a taxa de aprendizado de cada parâmetro com base nos
+primeiros e segundos momentos dos gradientes.
+
+Seja $g_t = \nabla_\theta\mathcal{L}_t$ o gradiente no passo $t$.
+As equações de atualização são:
+
+\begin{align}
+  m_t       &= \beta_1\,m_{t-1} + (1-\beta_1)\,g_t
+                                                           \label{eq:adam_m}\\[3pt]
+  v_t       &= \beta_2\,v_{t-1} + (1-\beta_2)\,g_t^2
+                                                           \label{eq:adam_v}\\[3pt]
+  \hat{m}_t &= \dfrac{m_t}{1-\beta_1^t}
+                                                           \label{eq:adam_mhat}\\[3pt]
+  \hat{v}_t &= \dfrac{v_t}{1-\beta_2^t}
+                                                           \label{eq:adam_vhat}\\[6pt]
+  \theta_t  &= \theta_{t-1}
+               - \alpha\cdot\dfrac{\hat{m}_t}{\sqrt{\hat{v}_t}+\varepsilon}
+                                                           \label{eq:adam_update}
+\end{align}
+
+onde $m_t$ é o \textbf{primeiro momento} (média exponencial dos gradientes),
+$v_t$ é o \textbf{segundo momento} (variância exponencial), e as correções
+$\hat{m}_t$, $\hat{v}_t$ compensam o viés de inicialização em zero.
+Os hiperparâmetros padrão do Keras são
+$\beta_1 = 0{,}9$, $\beta_2 = 0{,}999$, $\varepsilon = 10^{-7}$, e $\alpha$
+é a taxa de aprendizado ($10^{-4}$ para os modelos de TL;
+$5\times10^{-4}$ ou $10^{-4}$ para as CNNs do zero).
+
+% ------ Convolução Separável -----------------------------------
+\subsection{Convolução Separável em Profundidade}
+
+Os modelos da família MobileNet (V2, V3Small e V3Large) e o Xception
+substituem as convoluções padrão por \textbf{convoluções separáveis em
+profundidade} (\emph{Depthwise Separable Convolutions})
+\cite{chollet2017xception}, compostas de dois passos sequenciais:
+
+\textbf{(1) Depthwise Convolution} --- aplica um filtro independente por canal de entrada:
+\begin{equation}
+  \hat{Z}^{(c)}[i,j]
+  = \sum_{m}\sum_{n} X^{(c)}[i+m,\,j+n]\cdot K_{\mathrm{dw}}^{(c)}[m,n]
+  \label{eq:depthwise}
+\end{equation}
+
+\textbf{(2) Pointwise Convolution} --- combina os canais com uma convolução $1\times1$:
+\begin{equation}
+  Z^{(n)}[i,j] = \sum_{c=1}^{C}\hat{Z}^{(c)}[i,j]\cdot K_{\mathrm{pw}}^{(n,c)}
+  \label{eq:pointwise}
+\end{equation}
+
+Sendo $D_K$ o tamanho do kernel, $C$ os canais de entrada, $N$ o número de
+filtros e $D_F\times D_F$ a resolução do mapa, a razão de custo
+computacional entre as duas abordagens é:
+
+\begin{equation}
+  \frac{\mathcal{C}_{\mathrm{sep}}}{\mathcal{C}_{\mathrm{padrão}}}
+  = \frac{D_K^2 C D_F^2 + C N D_F^2}{D_K^2 C N D_F^2}
+  = \frac{1}{N} + \frac{1}{D_K^2}
+  \label{eq:dw_ratio}
+\end{equation}
+
+Para $D_K = 3$ e $N \gg 1$, a redução é de aproximadamente $\mathbf{8\times}$,
+viabilizando o uso em dispositivos com restrições de memória e processamento.
+
+% ------ Batch Normalization ------------------------------------
+\subsection{Normalização em Lote (\textit{Batch Normalization})}
+
+Vários backbones (ResNet50, EfficientNet, DenseNet121 e outros) aplicam
+\textbf{Batch Normalization} após as convoluções, normalizando as ativações
+dentro do mini-batch para reduzir o \emph{internal covariate shift}:
+
+\begin{equation}
+  \hat{x}_i = \frac{x_i - \mu_B}{\sqrt{\sigma_B^2 + \varepsilon}}
+  \label{eq:bn_norm}
+\end{equation}
+
+onde $\mu_B$ e $\sigma_B^2$ são a média e a variância das ativações no
+batch atual. Em seguida, uma transformação afim com parâmetros aprendíveis
+$\gamma$ (escala) e $\beta$ (deslocamento) restaura a capacidade expressiva:
+
+\begin{equation}
+  y_i = \gamma\,\hat{x}_i + \beta
+  \label{eq:bn_affine}
+\end{equation}
+
+% ------ Estatísticas de Replicabilidade ------------------------
+\subsection{Estatísticas de Replicabilidade}
+
+O protocolo Repeated Holdout com $n = 10$ rodadas exige a quantificação da
+variabilidade dos resultados. As seguintes medidas são reportadas para cada métrica:
+
+\textbf{Desvio Padrão Amostral:}
+\begin{equation}
+  s = \sqrt{\frac{1}{n-1}\sum_{i=1}^{n}(x_i - \bar{x})^2}
+  \label{eq:std}
+\end{equation}
+
+\textbf{Coeficiente de Variação (CV):}
+\begin{equation}
+  \mathrm{CV} = \frac{s}{\bar{x}}\times 100\%
+  \label{eq:cv}
+\end{equation}
+
+O CV expressa a dispersão relativa à média, permitindo comparar a estabilidade
+entre modelos com desempenhos médios distintos. Valores baixos de CV indicam
+maior estabilidade frente à variação das sementes.
+
+\textbf{Intervalo de Confiança de 95\% (t-Student):}
+\begin{equation}
+  \mathrm{IC}_{95\%} = \bar{x} \pm t_{0{,}025,\;n-1}\cdot\frac{s}{\sqrt{n}}
+  \label{eq:ic95_fund}
+\end{equation}
+
+Para $n = 10$ rodadas utiliza-se $t_{0{,}025,\;9} = 2{,}262$.
+
+% ==============================================================
+\section{Metodologia Experimental}
+% ==============================================================
+
+\subsection{Protocolo de Avaliação: Repeated Holdout}
+
+O protocolo \textbf{Repeated Holdout} com 10~sementes aleatórias fixas
+($\text{SEED} \in \{0, 1, \ldots, 9\}$) foi adotado para garantir a
+\textbf{replicabilidade} e estimar a variabilidade dos resultados.
+Em cada rodada, uma semente diferente é utilizada para inicializar
+os geradores aleatórios do Python, NumPy e TensorFlow, assegurando
+que os resultados sejam reprodutíveis.
+
+\subsection{Conjunto de Dados e Divisão}
+
+\begin{itemize}
+  \item \textbf{Treinamento}: imagens nas pastas \texttt{BOLSAS TREINAMENTO} e
+        \texttt{CALÇAS TREINAMENTO}, localizadas em \texttt{TREINAMENTO/}.
+  \item \textbf{Teste}: imagens nas pastas \texttt{BOLSAS TESTE} e
+        \texttt{CALÇAS TESTE}, localizadas em \texttt{TESTE/}.
+  \item A divisão treino/teste é \emph{fixa}; apenas a semente de embaralhamento
+        do gerador de treino varia entre rodadas.
+\end{itemize}
+
+\subsection{Aumento de Dados (\textit{Data Augmentation})}
+
+Dois conjuntos de parâmetros de aumento foram utilizados:
+
+\begin{table}[H]
+\centering
+\caption{Parâmetros de aumento de dados por tipo de modelo}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parâmetro} & \textbf{CNN do Zero} & \textbf{Transfer Learning} \\
+\midrule
+\texttt{rotation\_range}     & 15 & 15 \\
+\texttt{zoom\_range}         & 0.25 & 0.20 \\
+\texttt{width\_shift\_range} & 0.10 & 0.10 \\
+\texttt{height\_shift\_range}& 0.10 & 0.10 \\
+\texttt{shear\_range}        & 0.20 & --- \\
+\texttt{horizontal\_flip}    & \checkmark & \checkmark \\
+\texttt{brightness\_range}   & [0.8, 1.2] & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Pré-processamento de Imagens}
+
+Cada família de backbone exige uma função de pré-processamento específica,
+que normaliza os pixels para a escala esperada durante o pré-treino no ImageNet.
+As CNNs do zero utilizam rescaling simples ($\div 255$).
+
+\begin{table}[H]
+\centering
+\caption{Funções de pré-processamento por backbone}
+\begin{tabular}{ll}
+\toprule
+\textbf{Backbone} & \textbf{Função de pré-processamento} \\
+\midrule
+CNN do zero            & \texttt{rescale = 1/255} \\
+MobileNetV2            & \texttt{mobilenet\_v2.preprocess\_input} \\
+EfficientNetB0/B1/B2   & \texttt{efficientnet.preprocess\_input} \\
+ResNet50               & \texttt{resnet.preprocess\_input} \\
+DenseNet121            & \texttt{densenet.preprocess\_input} \\
+MobileNetV3Small/Large & \texttt{mobilenet\_v3.preprocess\_input} \\
+NASNetMobile           & \texttt{nasnet.preprocess\_input} \\
+InceptionV3            & \texttt{inception\_v3.preprocess\_input} \\
+Xception               & \texttt{xception.preprocess\_input} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Callback: Early Stopping}
+
+Todos os modelos utilizam \texttt{EarlyStopping} com os seguintes parâmetros:
+\begin{itemize}
+  \item \texttt{monitor = 'loss'} (monitora a perda de treino)
+  \item \texttt{patience = 5} (aguarda 5 épocas sem melhoria antes de parar)
+  \item \texttt{restore\_best\_weights = True}
+\end{itemize}
+
+\subsection{Métricas de Avaliação}
+
+Quatro métricas de classificação são calculadas com média ponderada (\emph{weighted average}):
+\begin{align}
+  \text{Acurácia}  &= \frac{TP + TN}{TP + TN + FP + FN} \\[4pt]
+  \text{Precisão}  &= \frac{TP}{TP + FP} \\[4pt]
+  \text{Recall}    &= \frac{TP}{TP + FN} \\[4pt]
+  \text{F1-score}  &= \frac{2 \cdot \text{Precisão} \cdot \text{Recall}}{\text{Precisão} + \text{Recall}}
+\end{align}
+
+Além disso, são registrados os tempos de treinamento, inferência e total (em segundos).
+
+\subsection{Intervalo de Confiança}
+
+O intervalo de confiança de 95\% é calculado usando a distribuição \emph{t}-Student
+para amostras pequenas ($n = 10$), com $t_{0.025, 9} = 2{,}262$:
+\[
+  \text{IC}_{95\%} = \bar{x} \pm t_{0.025,\,n-1} \cdot \dfrac{s}{\sqrt{n}}
+\]
+
+\subsection{Configuração Geral dos 13 Modelos}
+
+\begin{table}[H]
+\centering
+\caption{Resumo de configuração de todos os modelos avaliados}
+\small
+\begin{tabular}{clllccccl}
+\toprule
+\textbf{ID} & \textbf{Modelo} & \textbf{Tipo} & \textbf{Backbone} &
+\textbf{Img} & \textbf{Batch} & \textbf{Ép.} & \textbf{LR} & \textbf{Preprocess} \\
+\midrule
+1  & cnn\_from\_scratch      & CNN & ConvNet        & 150 & 32 & 50 & $5\times10^{-4}$ & Rescale  \\
+2  & cnn\_from\_scratch\_lr1e4 & CNN & ConvNet      & 150 & 32 & 50 & $1\times10^{-4}$ & Rescale  \\
+3  & mobilenetv2             & TL  & MobileNetV2    & 150 & 32 & 30 & $1\times10^{-4}$ & MNv2     \\
+4  & efficientnetb0          & TL  & EfficientNetB0 & 224 & 32 & 30 & $1\times10^{-4}$ & EffNet   \\
+5  & efficientnetb1          & TL  & EfficientNetB1 & 240 & 32 & 30 & $1\times10^{-4}$ & EffNet   \\
+6  & efficientnetb2          & TL  & EfficientNetB2 & 260 & 32 & 30 & $1\times10^{-4}$ & EffNet   \\
+7  & resnet50                & TL  & ResNet50       & 224 & 32 & 30 & $1\times10^{-4}$ & ResNet   \\
+8  & densenet121             & TL  & DenseNet121    & 224 & 32 & 30 & $1\times10^{-4}$ & DenseNet \\
+9  & mobilenetv3small        & TL  & MobileNetV3S   & 224 & 32 & 30 & $1\times10^{-4}$ & MNv3     \\
+10 & mobilenetv3large        & TL  & MobileNetV3L   & 224 & 32 & 30 & $1\times10^{-4}$ & MNv3     \\
+11 & nasnetmobile            & TL  & NASNetMobile   & 224 & 32 & 30 & $1\times10^{-4}$ & NASNet   \\
+12 & inceptionv3             & TL  & InceptionV3    & 299 & 16 & 30 & $1\times10^{-4}$ & Inception\\
+13 & xception                & TL  & Xception       & 299 & 16 & 30 & $1\times10^{-4}$ & Xception \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Arquitetura da Cabeça de Classificação (Transfer Learning)}
+
+Para todos os modelos de Transfer Learning, a mesma cabeça de classificação
+é adicionada sobre o backbone congelado:
+
+\begin{enumerate}
+  \item \textbf{Backbone pré-treinado} (pesos ImageNet, \texttt{trainable = False},
+        \texttt{include\_top = False})
+  \item \texttt{GlobalAveragePooling2D()} --- reduz o mapa de características a um vetor
+  \item \texttt{Dense(128, activation='relu')}
+  \item \texttt{Dense(64, activation='relu')}
+  \item \texttt{Dense(2, activation='softmax')} --- saída binária
+\end{enumerate}
+
+Compilação: \texttt{Adam(lr=1e-4)}, \texttt{loss='categorical\_crossentropy'},
+\texttt{metrics=['accuracy']}.
+
+% ==============================================================
+\section{Modelo 1 --- CNN Treinada do Zero (lr $= 5\times10^{-4}$)}
+\label{sec:cnn_scratch_5e4}
+% ==============================================================
+
+\subsection{Descrição da Arquitetura}
+
+A CNN do zero (\texttt{cnn\_from\_scratch}) é uma rede convolucional simples,
+projetada sem aproveitar pesos pré-treinados. Sua arquitetura segue o padrão
+clássico de empilhamento de blocos Conv+Pool, finalizando com camadas totalmente
+conectadas:
+
+\begin{enumerate}
+  \item \texttt{Conv2D(32, (3,3), activation='relu')} + \texttt{MaxPool2D()}
+  \item \texttt{Conv2D(64, (3,3), activation='relu')} + \texttt{MaxPool2D()}
+  \item \texttt{Conv2D(128, (3,3), activation='relu')} + \texttt{MaxPool2D()}
+  \item \texttt{Flatten()}
+  \item \texttt{Dense(128, activation='relu')}
+  \item \texttt{Dense(64, activation='relu')}
+  \item \texttt{Dense(2, activation='softmax')}
+\end{enumerate}
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Taxa de Aprendizado   & $5 \times 10^{-4}$ \\
+Imagem de Entrada     & $150 \times 150 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 50 \\
+Otimizador            & Adam \\
+Função de Perda       & Categorical Crossentropy \\
+Pré-processamento     & Rescale $1/255$ \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- CNN do zero ($\text{lr}=5\times10^{-4}$)}%
+              {../results/latex/tabela_rodadas_cnn_from_scratch.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- CNN do zero ($\text{lr}=5\times10^{-4}$)}%
+             {../results/latex/tabela_resumo_cnn_from_scratch.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{cnn_from_scratch_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- CNN do zero ($\text{lr}=5\times10^{-4}$)}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{cnn_from_scratch_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- CNN do zero ($\text{lr}=5\times10^{-4}$)}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{cnn_from_scratch_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- CNN do zero ($\text{lr}=5\times10^{-4}$)}
+\end{figure}
+
+\subsection{Análise}
+
+A CNN treinada do zero com $\text{lr}=5\times10^{-4}$ apresentou
+\textbf{alta variabilidade} entre as rodadas, com acurácia média de $0{,}7400$
+e desvio padrão de $0{,}0903$ (CV = 12,2\%). O intervalo de confiança de 95\%
+para a acurácia é $[0{,}6754;\, 0{,}8046]$. Esse comportamento indica que o
+modelo é sensível à inicialização dos pesos e à seleção dos dados de treinamento,
+resultado esperado para redes sem pré-treinamento. A taxa de aprendizado mais
+alta ($5\times10^{-4}$) pode causar oscilações na otimização.
+
+% ==============================================================
+\section{Modelo 2 --- CNN Treinada do Zero (lr $= 1\times10^{-4}$)}
+\label{sec:cnn_scratch_1e4}
+% ==============================================================
+
+\subsection{Descrição da Arquitetura}
+
+Arquitetura idêntica ao Modelo~1 (seção~\ref{sec:cnn_scratch_5e4}),
+diferindo apenas na taxa de aprendizado, que é reduzida para $1\times10^{-4}$.
+O objetivo é verificar se um gradiente mais conservador melhora a estabilidade
+do treinamento.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $150 \times 150 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 50 \\
+Otimizador            & Adam \\
+Função de Perda       & Categorical Crossentropy \\
+Pré-processamento     & Rescale $1/255$ \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- CNN do zero ($\text{lr}=1\times10^{-4}$)}%
+              {../results/latex/tabela_rodadas_cnn_from_scratch_lr1e4.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- CNN do zero ($\text{lr}=1\times10^{-4}$)}%
+             {../results/latex/tabela_resumo_cnn_from_scratch_lr1e4.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{cnn_from_scratch_lr1e4_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- CNN do zero ($\text{lr}=1\times10^{-4}$)}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{cnn_from_scratch_lr1e4_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- CNN do zero ($\text{lr}=1\times10^{-4}$)}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{cnn_from_scratch_lr1e4_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- CNN do zero ($\text{lr}=1\times10^{-4}$)}
+\end{figure}
+
+\subsection{Análise}
+
+Com $\text{lr}=1\times10^{-4}$, a CNN do zero obteve acurácia média de $0{,}6567$,
+\textbf{inferior} ao resultado com lr$=5\times10^{-4}$ ($0{,}7400$). O coeficiente
+de variação foi de 12,9\%, similar ao Modelo~1. Isso sugere que a taxa de aprendizado
+mais baixa pode ter dificultado a convergência dentro das 50~épocas com early stopping,
+ou levado o modelo a mínimos locais subótimos. Em ambos os casos de CNN do zero,
+o desempenho fica muito abaixo dos modelos de Transfer Learning.
+
+% ==============================================================
+\section{Modelo 3 --- MobileNetV2}
+\label{sec:mobilenetv2}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+O \textbf{MobileNetV2} \cite{sandler2018mobilenetv2} é uma arquitetura eficiente para dispositivos
+móveis, baseada em \emph{inverted residuals} com conexões residuais em blocos de expansão linear.
+O operador principal é o \emph{depthwise separable convolution}, que reduz drasticamente o número
+de parâmetros em relação a convoluções padrão. A versão utilizada é a original com entrada
+de $150\times150$.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & MobileNetV2 (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $150 \times 150 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{mobilenet\_v2.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- MobileNetV2}%
+              {../results/latex/tabela_rodadas_mobilenetv2.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- MobileNetV2}%
+             {../results/latex/tabela_resumo_mobilenetv2.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv2_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- MobileNetV2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv2_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- MobileNetV2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv2_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- MobileNetV2}
+\end{figure}
+
+\subsection{Análise}
+
+O MobileNetV2 atingiu acurácia média de $0{,}9700$ com desvio padrão de $0{,}0205$
+(CV = 2,1\%), demonstrando estabilidade significativamente superior às CNNs do zero.
+O intervalo de confiança de 95\% é $[0{,}9553;\, 0{,}9847]$. O tempo médio de
+treinamento foi de $40{,}3$~s, tornando-o um dos modelos mais rápidos entre os de TL.
+
+% ==============================================================
+\section{Modelo 4 --- EfficientNetB0}
+\label{sec:efficientnetb0}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+O \textbf{EfficientNet} \cite{tan2019efficientnet} introduz o conceito de
+\emph{compound scaling}, escalando simultaneamente profundidade, largura e
+resolução da rede de forma balanceada. O \textbf{EfficientNetB0} é a versão
+base desta família, com resolução nativa de $224\times224$.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & EfficientNetB0 (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $224 \times 224 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{efficientnet.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- EfficientNetB0}%
+              {../results/latex/tabela_rodadas_efficientnetb0.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- EfficientNetB0}%
+             {../results/latex/tabela_resumo_efficientnetb0.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb0_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- EfficientNetB0}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb0_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- EfficientNetB0}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb0_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- EfficientNetB0}
+\end{figure}
+
+\subsection{Análise}
+
+O EfficientNetB0 obteve acurácia média de $0{,}9983$, com desvio padrão de apenas
+$0{,}0053$ (CV = 0,5\%), mostrando desempenho quase perfeito e alta estabilidade.
+O IC~95\% é $[0{,}9946;\, 1{,}0021]$. O tempo médio de treinamento foi de $47{,}1$~s,
+levemente superior ao MobileNetV2.
+
+% ==============================================================
+\section{Modelo 5 --- EfficientNetB1}
+\label{sec:efficientnetb1}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+O \textbf{EfficientNetB1} é a primeira escala acima do B0 na família EfficientNet,
+com resolução nativa de $240\times240$ e maior número de parâmetros. Mantém a mesma
+estratégia de \emph{compound scaling}.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & EfficientNetB1 (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $240 \times 240 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{efficientnet.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- EfficientNetB1}%
+              {../results/latex/tabela_rodadas_efficientnetb1.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- EfficientNetB1}%
+             {../results/latex/tabela_resumo_efficientnetb1.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb1_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- EfficientNetB1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb1_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- EfficientNetB1}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb1_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- EfficientNetB1}
+\end{figure}
+
+\subsection{Análise}
+
+O EfficientNetB1 apresentou desempenho idêntico ao B0: acurácia média $0{,}9983$
+e desvio de $0{,}0053$. O custo computacional foi ligeiramente maior ($54{,}3$~s
+de treinamento em média \emph{vs.} $47{,}1$~s do B0), sem ganho preditivo. Isso
+indica que o aumento de complexidade do B1 não agrega valor para esta tarefa binária.
+
+% ==============================================================
+\section{Modelo 6 --- EfficientNetB2}
+\label{sec:efficientnetb2}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+O \textbf{EfficientNetB2} continua o escalonamento da família EfficientNet,
+com resolução nativa de $260\times260$. É o maior dos três variantes avaliados
+neste trabalho.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & EfficientNetB2 (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $260 \times 260 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{efficientnet.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- EfficientNetB2}%
+              {../results/latex/tabela_rodadas_efficientnetb2.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- EfficientNetB2}%
+             {../results/latex/tabela_resumo_efficientnetb2.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb2_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- EfficientNetB2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb2_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- EfficientNetB2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{efficientnetb2_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- EfficientNetB2}
+\end{figure}
+
+\subsection{Análise}
+
+O EfficientNetB2 é um dos dois modelos com \textbf{desempenho perfeito}: acurácia,
+precisão, recall e F1-score médios iguais a $1{,}0000$ com desvio padrão $0{,}0000$
+em todas as 10~rodadas. O treinamento demora em média $55{,}7$~s, tornando-o mais
+lento que o B0 porém com resultado absolutamente estável.
+
+% ==============================================================
+\section{Modelo 7 --- ResNet50}
+\label{sec:resnet50}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+A \textbf{ResNet50} \cite{he2016deep} é uma rede residual com 50 camadas e conexões
+de atalho (\emph{skip connections}) que resolvem o problema do gradiente desvanecente
+em redes profundas. Cada bloco residual aprende a diferença (resíduo) entre a entrada
+e a saída desejada.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & ResNet50 (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $224 \times 224 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{resnet.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- ResNet50}%
+              {../results/latex/tabela_rodadas_resnet50.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- ResNet50}%
+             {../results/latex/tabela_resumo_resnet50.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{resnet50_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- ResNet50}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{resnet50_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- ResNet50}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{resnet50_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- ResNet50}
+\end{figure}
+
+\subsection{Análise}
+
+A ResNet50 obteve acurácia média de $0{,}9600$ com desvio de $0{,}0387$ (CV = 4,0\%).
+Embora seja um dos modelos de TL com menor desempenho médio neste experimento,
+permanece bem acima das CNNs do zero. A variabilidade moderada (IC~95\%:
+$[0{,}9324;\, 0{,}9876]$) sugere sensibilidade à inicialização da cabeça de
+classificação. O tempo de treinamento ($48{,}4$~s) é similar ao EfficientNetB0.
+
+% ==============================================================
+\section{Modelo 8 --- DenseNet121}
+\label{sec:densenet121}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+A \textbf{DenseNet121} \cite{huang2017densely} conecta cada camada a todas as
+camadas subsequentes (\emph{dense connections}), promovendo reutilização de
+características e fluxo eficiente de gradientes. A DenseNet121 possui
+121~camadas, organizadas em 4 blocos densos com camadas de transição entre eles.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & DenseNet121 (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $224 \times 224 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{densenet.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- DenseNet121}%
+              {../results/latex/tabela_rodadas_densenet121.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- DenseNet121}%
+             {../results/latex/tabela_resumo_densenet121.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{densenet121_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- DenseNet121}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{densenet121_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- DenseNet121}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{densenet121_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- DenseNet121}
+\end{figure}
+
+\subsection{Análise}
+
+A DenseNet121 alcançou acurácia média de $0{,}9833$ com desvio de $0{,}0136$
+(CV = 1,4\%). O IC~95\% é $[0{,}9736;\, 0{,}9931]$, indicando alta estabilidade.
+O tempo médio de treinamento foi de $57{,}2$~s, o que a torna um dos modelos
+mais lentos nessa resolução, reflexo do alto número de conexões densas internas.
+
+% ==============================================================
+\section{Modelo 9 --- MobileNetV3Small}
+\label{sec:mobilenetv3small}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+O \textbf{MobileNetV3Small} \cite{howard2019searching} é uma versão compacta da
+família MobileNetV3, projetada para dispositivos de recursos muito limitados.
+Incorpora blocos \emph{squeeze-and-excitation} e a função de ativação \emph{hard-swish}.
+É a variante menor entre as duas versões do V3 avaliadas.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & MobileNetV3Small (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $224 \times 224 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{mobilenet\_v3.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- MobileNetV3Small}%
+              {../results/latex/tabela_rodadas_mobilenetv3small.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- MobileNetV3Small}%
+             {../results/latex/tabela_resumo_mobilenetv3small.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv3small_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- MobileNetV3Small}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv3small_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- MobileNetV3Small}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv3small_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- MobileNetV3Small}
+\end{figure}
+
+\subsection{Análise}
+
+O MobileNetV3Small atingiu acurácia média de $0{,}9650$ com desvio de $0{,}0631$
+(CV = 6,5\%), sendo o modelo de TL com maior variabilidade neste experimento.
+O IC~95\% de $[0{,}9199;\, 1{,}0101]$ ultrapassa 1,0 no limite superior (artefato
+estatístico aceitável). Apesar de ser o modelo mais compacto e rápido do grupo V3,
+sua menor capacidade representacional resulta em instabilidade para esta tarefa.
+
+% ==============================================================
+\section{Modelo 10 --- MobileNetV3Large}
+\label{sec:mobilenetv3large}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+O \textbf{MobileNetV3Large} é a versão de maior capacidade da família MobileNetV3,
+com mais filtros e estágios que o \emph{Small}. Mantém a eficiência para hardware
+limitado, mas com melhor desempenho em tarefas mais complexas.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & MobileNetV3Large (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $224 \times 224 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{mobilenet\_v3.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- MobileNetV3Large}%
+              {../results/latex/tabela_rodadas_mobilenetv3large.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- MobileNetV3Large}%
+             {../results/latex/tabela_resumo_mobilenetv3large.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv3large_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- MobileNetV3Large}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv3large_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- MobileNetV3Large}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{mobilenetv3large_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- MobileNetV3Large}
+\end{figure}
+
+\subsection{Análise}
+
+O MobileNetV3Large melhorou em relação ao Small: acurácia média de $0{,}9700$
+com desvio de $0{,}0312$ (CV = 3,2\%). O IC~95\% é $[0{,}9477;\, 0{,}9923]$.
+O tempo de treinamento ($42{,}7$~s) é similar ao MobileNetV2. A versão Large
+do V3 mostra melhor equilíbrio entre estabilidade e eficiência comparado à versão Small.
+
+% ==============================================================
+\section{Modelo 11 --- NASNetMobile}
+\label{sec:nasnetmobile}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+O \textbf{NASNetMobile} \cite{zoph2018learning} é uma arquitetura obtida por
+\emph{Neural Architecture Search} (NAS), em que o design da rede é automaticamente
+otimizado por um algoritmo de busca. A versão \emph{Mobile} é compacta, balanceando
+desempenho e eficiência.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & NASNetMobile (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $224 \times 224 \times 3$ \\
+Tamanho do Batch      & 32 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{nasnet.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- NASNetMobile}%
+              {../results/latex/tabela_rodadas_nasnetmobile.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- NASNetMobile}%
+             {../results/latex/tabela_resumo_nasnetmobile.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{nasnetmobile_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- NASNetMobile}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{nasnetmobile_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- NASNetMobile}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{nasnetmobile_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- NASNetMobile}
+\end{figure}
+
+\subsection{Análise}
+
+O NASNetMobile obteve acurácia média de $0{,}9683$ com desvio de $0{,}0254$
+(CV = 2,6\%), com IC~95\% em $[0{,}9502;\, 0{,}9865]$. Destaca-se negativamente
+pelo maior tempo de predição ($15{,}3$~s), consequência da topologia complexa
+gerada pelo NAS, que aumenta a latência de inferência. Seu tempo total médio
+($82{,}4$~s) é um dos mais elevados entre os modelos leves.
+
+% ==============================================================
+\section{Modelo 12 --- InceptionV3}
+\label{sec:inceptionv3}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+A \textbf{InceptionV3} \cite{szegedy2016rethinking} utiliza módulos Inception
+que paralelizam convoluções de diferentes tamanhos ($1\times1$, $3\times3$,
+$5\times5$) e as concatenam. O V3 introduz fatorização de convoluções e normalização
+de batch, exigindo entrada mínima de $299\times299$.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & InceptionV3 (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $299 \times 299 \times 3$ \\
+Tamanho do Batch      & 16 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{inception\_v3.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- InceptionV3}%
+              {../results/latex/tabela_rodadas_inceptionv3.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- InceptionV3}%
+             {../results/latex/tabela_resumo_inceptionv3.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{inceptionv3_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- InceptionV3}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{inceptionv3_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- InceptionV3}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{inceptionv3_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- InceptionV3}
+\end{figure}
+
+\subsection{Análise}
+
+A InceptionV3 obteve acurácia média de $0{,}9833$ com desvio de $0{,}0111$
+(CV = 1,1\%), com IC~95\% em $[0{,}9754;\, 0{,}9913]$. Apresenta alto desempenho
+preditivo, porém com o maior tempo de treinamento entre os modelos de resolução
+$299\times299$, chegando a $99{,}2$~s em média. O batch de 16 (necessário pela
+resolução maior) contribui para esse custo.
+
+% ==============================================================
+\section{Modelo 13 --- Xception}
+\label{sec:xception}
+% ==============================================================
+
+\subsection{Descrição do Backbone}
+
+A \textbf{Xception} \cite{chollet2017xception} é uma extensão da Inception que
+substitui os módulos Inception por \emph{depthwise separable convolutions} em
+todas as camadas. O nome vem de \emph{Extreme Inception}. Assim como a InceptionV3,
+requer entrada de $299\times299$.
+
+\subsection{Hiperparâmetros}
+
+\begin{parametros}
+Backbone              & Xception (ImageNet, congelado) \\
+Taxa de Aprendizado   & $1 \times 10^{-4}$ \\
+Imagem de Entrada     & $299 \times 299 \times 3$ \\
+Tamanho do Batch      & 16 \\
+Épocas Máximas        & 30 \\
+Otimizador            & Adam \\
+Pré-processamento     & \texttt{xception.preprocess\_input} \\
+\end{parametros}
+
+\subsection{Resultados por Rodada}
+
+\tabelarodadas{Resultados por rodada --- Xception}%
+              {../results/latex/tabela_rodadas_xception.tex}
+
+\subsection{Estatísticas Resumo}
+
+\tabelaresumo{Resumo estatístico --- Xception}%
+             {../results/latex/tabela_resumo_xception.tex}
+
+\subsection{Gráficos}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{xception_01_acuracia_por_rodada.pdf}
+  \caption{Acurácia por rodada --- Xception}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{xception_02_boxplot_metricas.pdf}
+  \caption{Boxplot das métricas --- Xception}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{xception_03_media_mais_desvio.pdf}
+  \caption{Média $\pm$ desvio padrão --- Xception}
+\end{figure}
+
+\subsection{Análise}
+
+A Xception é o segundo modelo com \textbf{desempenho perfeito} em todas as rodadas:
+acurácia, precisão, recall e F1-score iguais a $1{,}0000$ com desvio $0{,}0000$.
+O custo é o maior de todos os modelos: $110{,}7$~s de treinamento e $116{,}4$~s
+no total. Para esta tarefa binária, a Xception alcança o limite superior do desempenho,
+mas com o maior tempo de processamento.
+
+% ==============================================================
+\section{Análise Comparativa dos 13 Modelos}
+% ==============================================================
+
+\subsection{Tabela Comparativa de Médias --- Métricas de Classificação}
+
+\begin{table}[H]
+\centering
+\caption{Média das métricas de classificação por modelo (10 rodadas)}
+\begin{adjustbox}{max width=\textwidth, center}
+\input{../results/latex/tabela_medias_metricas_por_modelo_12.tex}
+\end{adjustbox}
+\end{table}
+
+\subsection{Tabela Comparativa de Médias --- Tempos de Execução}
+
+\begin{table}[H]
+\centering
+\caption{Média dos tempos de execução por modelo, em segundos (10 rodadas)}
+\begin{adjustbox}{max width=\textwidth, center}
+\input{../results/latex/tabela_medias_tempos_por_modelo_12.tex}
+\end{adjustbox}
+\end{table}
+
+\subsection{Tabela Resumo Consolidada dos 13 Modelos}
+
+A tabela a seguir apresenta todos os resumos estatísticos de todos os 13~modelos
+concatenados, incluindo média, desvio padrão, coeficiente de variação e
+intervalo de confiança de 95\% para cada métrica.
+
+\begin{table}[H]
+\centering
+\caption{Resumo estatístico consolidado dos 13 modelos}
+\begin{adjustbox}{max width=\textwidth, center}
+\input{../results/latex/tabela_resumo_12_modelos.tex}
+\end{adjustbox}
+\end{table}
+
+\subsection{Discussão Geral}
+
+\subsubsection{Modelos de Melhor Desempenho}
+
+Os modelos \textbf{EfficientNetB2} e \textbf{Xception} atingiram acurácia perfeita
+($1{,}0000$) em todas as 10~rodadas, com desvio padrão zero. Eles representam
+a fronteira superior de desempenho para esta tarefa binária.
+
+\subsubsection{Família EfficientNet}
+
+A família EfficientNet demonstrou excelente desempenho em todos os três variantes:
+\begin{itemize}
+  \item \textbf{B0}: acurácia $0{,}9983$ --- melhor custo-benefício da família
+  \item \textbf{B1}: acurácia $0{,}9983$ --- sem ganho em relação ao B0, maior custo
+  \item \textbf{B2}: acurácia $1{,}0000$ --- melhor desempenho, custo moderado
+\end{itemize}
+
+\subsubsection{Modelos Leves (\textit{Mobile})}
+
+MobileNetV2, MobileNetV3Large e NASNetMobile apresentam bom desempenho
+(acurácia $\geq 0{,}97$) com tempos de treinamento reduzidos ($\approx 40$--50~s),
+sendo adequados para cenários com restrições computacionais.
+
+\subsubsection{Impacto da Arquitetura CNN do Zero}
+
+A comparação entre as CNNs treinadas do zero e os modelos de TL ilustra
+claramente o \textbf{poder do Transfer Learning}: todos os 11~backbones
+pré-treinados superaram as CNNs do zero, que atingiram no máximo $0{,}74$ de acurácia.
+Isso confirma que os pesos aprendidos no ImageNet transferem representações visuais
+úteis mesmo para domínios específicos como moda.
+
+\subsubsection{Relação Desempenho $\times$ Tempo}
+
+\begin{table}[H]
+\centering
+\caption{Classificação dos modelos por desempenho e custo computacional}
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Modelo} & \textbf{Acurácia Média} & \textbf{Tempo Treino (s)} & \textbf{Classificação} \\
+\midrule
+EfficientNetB2  & 1.0000 & 55.7 & Melhor desempenho \\
+Xception        & 1.0000 & 110.7 & Melhor desempenho, mais lento \\
+EfficientNetB0  & 0.9983 & 47.1 & Ótimo custo-benefício \\
+EfficientNetB1  & 0.9983 & 54.3 & Similar ao B0, mais lento \\
+DenseNet121     & 0.9833 & 57.2 & Alto desempenho \\
+InceptionV3     & 0.9833 & 99.2 & Alto desempenho, lento \\
+MobileNetV2     & 0.9700 & 40.3 & Bom, muito rápido \\
+MobileNetV3L    & 0.9700 & 42.7 & Bom, rápido \\
+NASNetMobile    & 0.9683 & 67.1 & Bom, lento na inferência \\
+MobileNetV3S    & 0.9650 & 40.2 & Aceitável, mais variável \\
+ResNet50        & 0.9600 & 48.4 & Bom, CV moderado \\
+CNN (lr=5e-4)   & 0.7400 & 34.4 & Fraco, muito variável \\
+CNN (lr=1e-4)   & 0.6567 & 36.9 & Fraco, muito variável \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ==============================================================
+\section{Conclusões}
+% ==============================================================
+
+Este trabalho avaliou sistematicamente 13 modelos de CNNs para a classificação binária
+de imagens de moda (bolsas \emph{vs.} calças), utilizando o protocolo Repeated Holdout
+com 10 sementes, garantindo a replicabilidade e robustez estatística dos resultados.
+
+Os principais achados são:
+
+\begin{enumerate}
+  \item \textbf{Transfer Learning supera CNNs do zero}: todos os 11 backbones
+        pré-treinados no ImageNet superaram significativamente as CNNs treinadas
+        do zero, confirmando a eficácia do TL mesmo para domínios específicos.
+
+  \item \textbf{EfficientNetB2 e Xception}: atingiram desempenho perfeito em todas
+        as rodadas. O B2 é preferível em custo-benefício pois é mais rápido.
+
+  \item \textbf{EfficientNetB0}: melhor relação desempenho/custo entre os modelos
+        avaliados, com acurácia de $0{,}9983$ e treinamento em $\approx 47$~s.
+
+  \item \textbf{MobileNetV2}: ideal para aplicações com restrições de tempo,
+        atingindo $0{,}9700$ de acurácia em apenas $\approx 40$~s.
+
+  \item \textbf{Taxa de aprendizado nas CNNs do zero}: a taxa $5\times10^{-4}$
+        superou $1\times10^{-4}$, mas ambas apresentaram alta variabilidade
+        e desempenho muito inferior ao TL.
+\end{enumerate}
+
+\textbf{Recomendação}: Para implantação em produção, o \textbf{EfficientNetB2}
+é o modelo recomendado, com acurácia perfeita e tempo de treinamento razoável.
+Para cenários com restrições de hardware, o \textbf{MobileNetV2} ou o
+\textbf{EfficientNetB0} são alternativas eficientes.
+
+% ==============================================================
+\section*{Referências}
+% ==============================================================
+\addcontentsline{toc}{section}{Referências}
+
+\begin{thebibliography}{99}
+
+\bibitem{kingma2014adam}
+D. P. Kingma, J. Ba,
+``Adam: A Method for Stochastic Optimization,''
+\emph{ICLR}, 2015.
+
+\bibitem{sandler2018mobilenetv2}
+M. Sandler, A. Howard, M. Zhu, A. Zhmoginov, L.-C. Chen,
+``MobileNetV2: Inverted Residuals and Linear Bottlenecks,''
+\emph{CVPR}, 2018.
+
+\bibitem{tan2019efficientnet}
+M. Tan, Q. V. Le,
+``EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks,''
+\emph{ICML}, 2019.
+
+\bibitem{he2016deep}
+K. He, X. Zhang, S. Ren, J. Sun,
+``Deep Residual Learning for Image Recognition,''
+\emph{CVPR}, 2016.
+
+\bibitem{huang2017densely}
+G. Huang, Z. Liu, L. van der Maaten, K. Q. Weinberger,
+``Densely Connected Convolutional Networks,''
+\emph{CVPR}, 2017.
+
+\bibitem{howard2019searching}
+A. Howard, R. Pang, H. Adam, Q. V. Le, M. Sandler, B. Chen,
+W. Wang, L.-C. Chen, M. Tan, G. Chu, V. Vasudevan, Y. Zhu,
+``Searching for MobileNetV3,''
+\emph{ICCV}, 2019.
+
+\bibitem{zoph2018learning}
+B. Zoph, V. Vasudevan, J. Shlens, Q. V. Le,
+``Learning Transferable Architectures for Scalable Image Recognition,''
+\emph{CVPR}, 2018.
+
+\bibitem{szegedy2016rethinking}
+C. Szegedy, V. Vanhoucke, S. Ioffe, J. Shlens, Z. Wojna,
+``Rethinking the Inception Architecture for Computer Vision,''
+\emph{CVPR}, 2016.
+
+\bibitem{chollet2017xception}
+F. Chollet,
+``Xception: Deep Learning with Depthwise Separable Convolutions,''
+\emph{CVPR}, 2017.
+
+\end{thebibliography}
+
+\end{document}
