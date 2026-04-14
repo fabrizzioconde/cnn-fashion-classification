@@ -168,6 +168,9 @@ e de inferência).
 Esta seção apresenta as principais funções e expressões matemáticas que fundamentam
 o funcionamento das CNNs avaliadas neste trabalho, desde a operação primitiva de
 convolução até o otimizador e as funções estatísticas de replicabilidade.
+As referências utilizadas incluem obras seminais de aprendizado profundo
+\cite{lecun1998gradient,goodfellow2016deep,lecun2015deep} e artigos específicos
+de cada componente, detalhados em cada subseção.
 
 % ------ Convolução 2D ------------------------------------------
 \subsection{Operação de Convolução 2D}
@@ -192,7 +195,10 @@ canais de entrada $C$ e $N$ filtros paralelos, a equação se generaliza para:
 \end{equation}
 
 onde $b^{(n)}$ é o viés do $n$-ésimo filtro. Neste projeto, todos os filtros
-convolucionais utilizam núcleos $3\times3$.
+convolucionais utilizam núcleos $3\times3$. A operação de convolução aplicada
+ao reconhecimento de padrões visuais foi formalizada por LeCun et al.\
+\cite{lecun1998gradient}, consolidando-se como o bloco fundamental das CNNs
+modernas \cite{goodfellow2016deep}.
 
 % ------ Funções de Ativação ------------------------------------
 \subsection{Funções de Ativação}
@@ -208,7 +214,11 @@ que introduz não-linearidade ao modelo zerando todos os valores negativos:
 \end{equation}
 
 A ReLU é computacionalmente eficiente e mitiga o problema do gradiente desvanecente
-em redes profundas, sendo a ativação padrão em todas as camadas ocultas dos 13 modelos.
+em redes profundas \cite{glorot2011deep}, sendo a ativação padrão em todas as
+camadas ocultas dos 13 modelos. Nair e Hinton \cite{nair2010rectified} demonstraram
+que unidades com ativação retificada superam funções sigmoidais em tarefas de
+classificação, e Glorot et al.\ \cite{glorot2011deep} evidenciaram sua capacidade
+de induzir representações esparsas, favorecendo a generalização.
 
 \subsubsection{Logit --- Saída Linear Bruta da Rede}
 \label{sec:logit}
@@ -226,11 +236,13 @@ onde $\mathbf{h}$ é o vetor de ativações da camada anterior (saída do
 e $b_c$ é o viés correspondente.
 
 O valor $z_c$ é chamado de \textbf{logit} da classe $c$. O termo vem da
-função \emph{logit} da estatística ($\log\frac{p}{1-p}$), mas no contexto
-de redes neurais designa genericamente qualquer \textbf{pontuação linear
-irrestrita} produzida antes de uma função de ativação --- podendo assumir
-qualquer valor real ($z_c \in \mathbb{R}$), positivo ou negativo, sem
-interpretação direta de probabilidade.
+função \emph{logit} da estatística ($\log\frac{p}{1-p}$), originalmente
+proposta no contexto de modelos de regressão para dados ordinais
+\cite{mccullagh1980regression}, mas no contexto de redes neurais designa
+genericamente qualquer \textbf{pontuação linear irrestrita} produzida antes
+de uma função de ativação --- podendo assumir qualquer valor real
+($z_c \in \mathbb{R}$), positivo ou negativo, sem interpretação direta de
+probabilidade \cite{goodfellow2016deep}.
 
 O vetor de logits $\mathbf{z} = (z_1, z_2)$ para a tarefa binária
 deste trabalho representa, portanto, o \emph{grau de afinidade} bruto
@@ -263,6 +275,10 @@ $\sum_{c=1}^{C}\hat{p}_c = 1$. Para a tarefa binária deste trabalho
 \end{equation}
 
 A classe predita é determinada por $\hat{y} = \arg\max_{c}\,\hat{p}_c$.
+A interpretação probabilística da saída Softmax em redes de classificação
+foi formalizada por Bridle \cite{bridle1990probabilistic}, tornando-se a
+função de ativação de saída padrão para classificação multiclasse
+\cite{goodfellow2016deep}.
 
 % ------ Pooling ------------------------------------------------
 \subsection{Operações de Pooling}
@@ -280,7 +296,10 @@ passo (\emph{stride}) igual a $p$:
 
 Cada bloco Conv+MaxPool na CNN do zero reduz pela metade a resolução espacial
 ($H\times W\to\tfrac{H}{2}\times\tfrac{W}{2}$), expandindo progressivamente
-o campo receptivo da rede.
+o campo receptivo da rede \cite{lecun1998gradient}. Zeiler e Fergus
+\cite{zeiler2014visualizing} demonstraram por meio de visualizações que as
+camadas de pooling são essenciais para construir invariância a pequenas
+translações e deformações da entrada.
 
 \subsubsection{Global Average Pooling (GAP)}
 
@@ -295,17 +314,20 @@ vetor $\mathbf{g}\in\mathbb{R}^{C}$:
   \label{eq:gap}
 \end{equation}
 
-O GAP elimina a necessidade de camadas densas volumosas sobre o mapa de
-características e atua como regularizador natural, reduzindo o risco de
-\emph{overfitting}.
+O GAP foi introduzido por Lin et al.\ \cite{lin2013network} como alternativa
+às camadas totalmente conectadas, eliminando a necessidade de camadas densas
+volumosas sobre o mapa de características e atuando como regularizador
+natural que reduz o risco de \emph{overfitting}.
 
 % ------ Função de Perda ----------------------------------------
 \subsection{Função de Perda: Entropia Cruzada Categórica}
 
 Todos os modelos são treinados minimizando a \textbf{Entropia Cruzada
-Categórica} (\emph{Categorical Cross-Entropy}), que mede a divergência
-entre a distribuição real $\mathbf{y}$ (codificada em \emph{one-hot})
-e a distribuição prevista $\hat{\mathbf{p}}$ (saída da Softmax):
+Categórica} (\emph{Categorical Cross-Entropy}), cuja fundamentação teórica
+remonta à teoria da informação de Shannon \cite{shannon1948mathematical} e
+que mede a divergência entre a distribuição real $\mathbf{y}$ (codificada
+em \emph{one-hot}) e a distribuição prevista $\hat{\mathbf{p}}$ (saída da
+Softmax) \cite{goodfellow2016deep}:
 
 \begin{equation}
   \mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\sum_{c=1}^{C}
@@ -474,8 +496,9 @@ $5\times10^{-4}$ ou $10^{-4}$ para as CNNs do zero).
 
 Os modelos da família MobileNet (V2, V3Small e V3Large) e o Xception
 substituem as convoluções padrão por \textbf{convoluções separáveis em
-profundidade} (\emph{Depthwise Separable Convolutions})
-\cite{chollet2017xception}, compostas de dois passos sequenciais:
+profundidade} (\emph{Depthwise Separable Convolutions}), introduzidas por
+Howard et al.\ \cite{howard2017mobilenets} e popularizadas no Xception por
+Chollet \cite{chollet2017xception}, compostas de dois passos sequenciais:
 
 \textbf{(1) Depthwise Convolution} --- aplica um filtro independente por canal de entrada:
 \begin{equation}
@@ -508,8 +531,11 @@ viabilizando o uso em dispositivos com restrições de memória e processamento.
 \subsection{Normalização em Lote (\textit{Batch Normalization})}
 
 Vários backbones (ResNet50, EfficientNet, DenseNet121 e outros) aplicam
-\textbf{Batch Normalization} após as convoluções, normalizando as ativações
-dentro do mini-batch para reduzir o \emph{internal covariate shift}:
+\textbf{Batch Normalization} \cite{ioffe2015batch} após as convoluções,
+normalizando as ativações dentro do mini-batch para reduzir o
+\emph{internal covariate shift} --- fenômeno descrito por Ioffe e Szegedy
+\cite{ioffe2015batch} como a mudança na distribuição das ativações ao longo
+do treinamento, que desacelera a convergência:
 
 \begin{equation}
   \hat{x}_i = \frac{x_i - \mu_B}{\sqrt{\sigma_B^2 + \varepsilon}}
@@ -529,7 +555,8 @@ $\gamma$ (escala) e $\beta$ (deslocamento) restaura a capacidade expressiva:
 \subsection{Estatísticas de Replicabilidade}
 
 O protocolo Repeated Holdout com $n = 10$ rodadas exige a quantificação da
-variabilidade dos resultados. As seguintes medidas são reportadas para cada métrica:
+variabilidade dos resultados \cite{dietterich1998approximate,bouckaert2004evaluating}.
+As seguintes medidas são reportadas para cada métrica:
 
 \textbf{Desvio Padrão Amostral:}
 \begin{equation}
@@ -554,6 +581,10 @@ maior estabilidade frente à variação das sementes.
 \end{equation}
 
 Para $n = 10$ rodadas utiliza-se $t_{0{,}025,\;9} = 2{,}262$.
+Dietterich \cite{dietterich1998approximate} recomenda o uso de testes
+estatísticos baseados em reamostragem para comparação de algoritmos de
+aprendizado, sendo o IC baseado em $t$-Student uma das abordagens mais
+adotadas na literatura de aprendizado de máquina \cite{bouckaert2004evaluating}.
 
 % ==============================================================
 \section{Metodologia Experimental}
@@ -1648,6 +1679,84 @@ Para cenários com restrições de hardware, o \textbf{MobileNetV2} ou o
 \addcontentsline{toc}{section}{Referências}
 
 \begin{thebibliography}{99}
+
+\bibitem{lecun1998gradient}
+Y. LeCun, L. Bottou, Y. Bengio, P. Haffner,
+``Gradient-based learning applied to document recognition,''
+\emph{Proceedings of the IEEE}, vol.~86, no.~11, pp.~2278--2324, 1998.
+
+\bibitem{lecun2015deep}
+Y. LeCun, Y. Bengio, G. Hinton,
+``Deep learning,''
+\emph{Nature}, vol.~521, pp.~436--444, 2015.
+
+\bibitem{goodfellow2016deep}
+I. Goodfellow, Y. Bengio, A. Courville,
+\emph{Deep Learning}.
+MIT Press, 2016. Disponível em: \url{https://www.deeplearningbook.org}
+
+\bibitem{nair2010rectified}
+V. Nair, G. E. Hinton,
+``Rectified linear units improve restricted Boltzmann machines,''
+\emph{ICML}, pp.~807--814, 2010.
+
+\bibitem{glorot2011deep}
+X. Glorot, A. Bordes, Y. Bengio,
+``Deep sparse rectifier neural networks,''
+\emph{AISTATS}, vol.~15, pp.~315--323, 2011.
+
+\bibitem{mccullagh1980regression}
+P. McCullagh,
+``Regression models for ordinal data,''
+\emph{Journal of the Royal Statistical Society: Series B},
+vol.~42, no.~2, pp.~109--127, 1980.
+
+\bibitem{bridle1990probabilistic}
+J. S. Bridle,
+``Probabilistic interpretation of feedforward classification network
+outputs, with relationships to statistical pattern recognition,''
+in \emph{Neurocomputing: Algorithms, Architectures and Applications},
+F. Fogelman-Soulié, J. Hérault (Eds.), Springer, pp.~227--236, 1990.
+
+\bibitem{zeiler2014visualizing}
+M. D. Zeiler, R. Fergus,
+``Visualizing and understanding convolutional networks,''
+\emph{ECCV}, pp.~818--833, 2014.
+
+\bibitem{lin2013network}
+M. Lin, Q. Chen, S. Yan,
+``Network in network,''
+\emph{ICLR}, 2014. arXiv:1312.4400.
+
+\bibitem{shannon1948mathematical}
+C. E. Shannon,
+``A mathematical theory of communication,''
+\emph{Bell System Technical Journal}, vol.~27, no.~3, pp.~379--423, 1948.
+
+\bibitem{ioffe2015batch}
+S. Ioffe, C. Szegedy,
+``Batch normalization: Accelerating deep network training by reducing
+internal covariate shift,''
+\emph{ICML}, pp.~448--456, 2015.
+
+\bibitem{howard2017mobilenets}
+A. G. Howard, M. Zhu, B. Chen, D. Kalenichenko, W. Wang, T. Weyand,
+M. Andreetto, H. Adam,
+``MobileNets: Efficient convolutional neural networks for mobile vision
+applications,''
+arXiv:1704.04861, 2017.
+
+\bibitem{dietterich1998approximate}
+T. G. Dietterich,
+``Approximate statistical tests for comparing supervised classification
+learning algorithms,''
+\emph{Neural Computation}, vol.~10, no.~7, pp.~1895--1923, 1998.
+
+\bibitem{bouckaert2004evaluating}
+R. R. Bouckaert, E. Frank,
+``Evaluating the replicability of significance tests for comparing
+learning algorithms,''
+\emph{PAKDD}, pp.~3--12, 2004.
 
 \bibitem{kingma2014adam}
 D. P. Kingma, J. Ba,
