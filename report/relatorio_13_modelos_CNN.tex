@@ -365,6 +365,64 @@ que unidades com ativação retificada superam funções sigmoidais em tarefas d
 classificação, e Glorot et al.\ \cite{glorot2011deep} evidenciaram sua capacidade
 de induzir representações esparsas, favorecendo a generalização.
 
+A Figura~\ref{fig:relu} ilustra o comportamento da função: saída nula para
+entradas negativas (neurônio \emph{inativo}) e identidade para entradas positivas
+(neurônio \emph{ativo}), com derivada $\frac{d}{dx}\text{ReLU}(x) = \mathbf{1}[x>0]$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, scale=1.1]
+
+  %% Grade de fundo
+  \draw[gray!25, thin, step=0.5] (-3.2,-0.7) grid (3.2,3.2);
+
+  %% Eixos
+  \draw[thick,->] (-3.3,0) -- (3.4,0) node[right] {$x$};
+  \draw[thick,->] (0,-0.75) -- (0,3.4) node[above] {$\text{ReLU}(x)$};
+
+  %% Marcações eixo x
+  \foreach \x in {-3,-2,-1,1,2,3}{
+    \draw[thin] (\x,0.05) -- (\x,-0.05)
+      node[below, font=\scriptsize] {$\x$};
+  }
+
+  %% Marcações eixo y
+  \foreach \y in {1,2,3}{
+    \draw[thin] (0.05,\y) -- (-0.05,\y)
+      node[left, font=\scriptsize] {$\y$};
+  }
+
+  %% Região inativa (x < 0): fundo sombreado
+  \fill[red!8] (-3.2,0) rectangle (0,-0.7);
+  \node[font=\scriptsize, red!60!black] at (-1.6,-0.45)
+    {inativo \;($\nabla = 0$)};
+
+  %% Região ativa (x > 0): fundo sombreado
+  \fill[blue!6] (0,0) rectangle (3.2,3.2);
+  \node[font=\scriptsize, blue!60!black] at (1.8,2.7)
+    {ativo \;($\nabla = 1$)};
+
+  %% Curva ReLU
+  \draw[blue!70!black, very thick, line cap=round]
+    (-3.2,0) -- (0,0) -- (3.2,3.2);
+
+  %% Ponto de inflexão
+  \filldraw[blue!70!black] (0,0) circle (2.2pt);
+  \node[below right, font=\scriptsize, blue!70!black] at (0.05,-0.05)
+    {$(0,\,0)$};
+
+  %% Rótulo da equação
+  \node[right, font=\small, blue!80!black] at (1.5,1.0)
+    {$\text{ReLU}(x)=\max(0,x)$};
+
+\end{tikzpicture}
+\caption{Função de ativação ReLU\@. Para $x < 0$ a saída é zero (neurônio
+inativo, gradiente nulo); para $x \ge 0$ a saída é o próprio $x$ (neurônio
+ativo, gradiente unitário). A descontinuidade da derivada em $x=0$ não impede
+o treinamento por gradiente descendente na prática \cite{goodfellow2016deep}.}
+\label{fig:relu}
+\end{figure}
+
 \subsubsection{Logit --- Saída Linear Bruta da Rede}
 \label{sec:logit}
 
