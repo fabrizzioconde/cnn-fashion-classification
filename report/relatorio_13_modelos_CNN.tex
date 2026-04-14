@@ -28,7 +28,7 @@
 \usepackage{parskip}
 \usepackage{underscore}  % permite _ em modo texto sem escapar
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta,decorations.pathreplacing}
+\usetikzlibrary{positioning,arrows.meta,decorations.pathreplacing,calc,shapes.geometric}
 
 \geometry{
   a4paper,
@@ -345,6 +345,92 @@ ao reconhecimento de padrões visuais foi formalizada por LeCun et al.\
 \cite{lecun1998gradient}, consolidando-se como o bloco fundamental das CNNs
 modernas \cite{goodfellow2016deep}.
 
+A Figura~\ref{fig:conv2d} exemplifica a operação com um kernel $3\times3$
+deslizando sobre uma entrada $4\times4$ (stride~1, sem padding), produzindo
+um mapa de saída $2\times2$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize]
+\def\s{0.60}
+\def\kx{3.5}   % offset horizontal do kernel
+\def\ox{7.8}   % offset horizontal da saída
+
+%% ----- Entrada 4x4 -----
+\node[above, font=\small\bfseries] at ({1.5*\s},{1.05*\s})
+  {Entrada $I$ ($4\!\times\!4$)};
+
+% Células fora da janela (cinza)
+\foreach \col/\row/\val in {
+  3/0/1,  3/1/2,  3/2/1,
+  0/3/1,  1/3/2,  2/3/1,  3/3/0}{
+  \draw[fill=gray!10,draw=gray!45]
+    ({\col*\s},{-\row*\s}) rectangle ({(\col+1)*\s},{(-\row+1)*\s});
+  \node at ({(\col+.5)*\s},{(-\row+.5)*\s}) {\val};
+}
+% Janela 3x3 destacada (azul)
+\foreach \col/\row/\val in {
+  0/0/1, 1/0/0, 2/0/2,
+  0/1/0, 1/1/1, 2/1/0,
+  0/2/2, 1/2/0, 2/2/1}{
+  \draw[fill=blue!18,draw=blue!55!black]
+    ({\col*\s},{-\row*\s}) rectangle ({(\col+1)*\s},{(-\row+1)*\s});
+  \node at ({(\col+.5)*\s},{(-\row+.5)*\s}) {\val};
+}
+% Borda grossa ao redor da janela
+\draw[blue!60!black, very thick, rounded corners=2pt]
+  (-0.03,{-2*\s-0.03}) rectangle ({3*\s+0.03},{\s+0.03});
+
+%% ----- Operador * -----
+\node[font=\large\bfseries] at ({(\kx-0.7)*\s},{-\s}) {$*$};
+
+%% ----- Kernel 3x3 (laranja) -----
+\node[above, font=\small\bfseries] at ({(\kx+1.5)*\s},{1.05*\s})
+  {Kernel $K$ ($3\!\times\!3$)};
+\foreach \col/\row/\val in {
+  0/0/1, 1/0/0, 2/0/1,
+  0/1/0, 1/1/1, 2/1/0,
+  0/2/1, 1/2/0, 2/2/1}{
+  \draw[fill=orange!22,draw=orange!65!black]
+    ({(\kx+\col)*\s},{-\row*\s}) rectangle ({(\kx+\col+1)*\s},{(-\row+1)*\s});
+  \node at ({(\kx+\col+.5)*\s},{(-\row+.5)*\s}) {\val};
+}
+
+%% ----- Seta -----
+\draw[-{Stealth[length=6pt]},thick,gray!70!black]
+  ({(\kx+3.4)*\s},{-\s}) -- ({(\ox-0.4)*\s},{-\s});
+
+%% ----- Saída 2x2 -----
+\node[above, font=\small\bfseries] at ({(\ox+1)*\s},{1.05*\s})
+  {Saída ($2\!\times\!2$)};
+
+% Posição (0,0) = 7 — destacada em verde
+\draw[fill=green!22,draw=green!60!black]
+  ({\ox*\s},{0}) rectangle ({(\ox+1)*\s},{\s});
+\node[font=\bfseries] at ({(\ox+.5)*\s},{.5*\s}) {7};
+
+% Demais posições
+\foreach \col/\row/\val in {1/0/5, 0/1/4, 1/1/6}{
+  \draw[fill=gray!10,draw=gray!45]
+    ({(\ox+\col)*\s},{-\row*\s}) rectangle ({(\ox+\col+1)*\s},{(-\row+1)*\s});
+  \node at ({(\ox+\col+.5)*\s},{(-\row+.5)*\s}) {\val};
+}
+
+%% ----- Cálculo do elemento (0,0) -----
+\node[below, font=\scriptsize, align=center] at ({5.5*\s},{-3.0*\s})
+  {$(I{*}K)[0,0]
+   = 1{\cdot}1 + 0{\cdot}0 + 2{\cdot}1
+   + 0{\cdot}0 + 1{\cdot}1 + 0{\cdot}0
+   + 2{\cdot}1 + 0{\cdot}0 + 1{\cdot}1
+   = \mathbf{7}$};
+\end{tikzpicture}
+\caption{Convolução 2D: a janela $3\times3$ (azul) desliza pela entrada $4\times4$ e
+  computa o produto escalar com o kernel $K$ (laranja) em cada posição.
+  O valor $[0,0]=\mathbf{7}$ (verde) é a soma de produtos mostrada abaixo.
+  O mapa de saída tem dimensão $(4{-}3{+}1)\times(4{-}3{+}1)=2\times2$.}
+\label{fig:conv2d}
+\end{figure}
+
 % ------ Funções de Ativação ------------------------------------
 \subsection{Funções de Ativação}
 
@@ -453,6 +539,56 @@ que a rede atribui a cada classe. Um logit maior indica maior tendência
 da rede em classificar a entrada naquela classe, mas apenas após a
 Softmax esses valores se tornam probabilidades comparáveis e somam 1.
 
+A Figura~\ref{fig:logit} ilustra como os neurônios ocultos $h_1,\ldots,h_n$
+se conectam plenamente à camada \texttt{Dense(2)}, gerando os logits
+$z_{\text{bolsa}}$ e $z_{\text{calça}}$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  node distance=1.6cm,
+  neuron/.style={circle, draw, minimum size=0.7cm, inner sep=0pt},
+  label/.style={font=\scriptsize}
+]
+  % Hidden neurons
+  \foreach \i/\name in {1/h_1, 2/h_2, 3/\vdots, 4/h_n} {
+    \ifnum\i=3
+      \node[font=\large] (h\i) at (0, {(2-\i)*1.2}) {$\vdots$};
+    \else
+      \node[neuron, fill=blue!15] (h\i) at (0, {(2-\i)*1.2}) {$\name$};
+    \fi
+  }
+  % Output neurons
+  \node[neuron, fill=orange!30] (zb) at (3.5,  0.6) {$z_{\text{b}}$};
+  \node[neuron, fill=orange!30] (zc) at (3.5, -0.6) {$z_{\text{c}}$};
+
+  % Connections (skip the \vdots node)
+  \foreach \i in {1,2,4} {
+    \draw[->, gray!60] (h\i) -- (zb);
+    \draw[->, gray!60] (h\i) -- (zc);
+  }
+
+  % Labels on arrows
+  \node[label, above=0.05cm] at (1.75, 0.85) {$w_{\text{b}}^\top h + b_{\text{b}}$};
+  \node[label, below=0.05cm] at (1.75,-0.85) {$w_{\text{c}}^\top h + b_{\text{c}}$};
+
+  % Layer labels
+  \node[above=0.3cm of h1, font=\scriptsize\bfseries] {Camada oculta};
+  \node[above=0.3cm of zb, font=\scriptsize\bfseries, align=center] {Dense(2)\\(logits)};
+
+  % Brace and formula
+  \draw[decorate, decoration={brace, amplitude=6pt, mirror}]
+    (3.9, -1.0) -- (3.9, 1.0)
+    node[midway, right=8pt, font=\scriptsize, align=left]
+      {$z_c = w_c^\top h + b_c \in \mathbb{R}$};
+\end{tikzpicture}
+\caption{Camada \texttt{Dense(2)} gerando os logits $z_{\text{bolsa}}$
+  ($z_{\text{b}}$) e $z_{\text{calça}}$ ($z_{\text{c}}$) a partir dos
+  neurônios ocultos $h_i$ por combinação linear com pesos $w_c$ e viés $b_c$.}
+\label{fig:logit}
+\end{figure}
+
 \subsubsection{Softmax --- Conversão para Probabilidade}
 
 A camada de saída de \textbf{todos os 13 modelos} utiliza a função \textbf{Softmax},
@@ -482,6 +618,51 @@ A interpretação probabilística da saída Softmax em redes de classificação
 foi formalizada por Bridle \cite{bridle1990probabilistic}, tornando-se a
 função de ativação de saída padrão para classificação multiclasse
 \cite{goodfellow2016deep}.
+
+A Figura~\ref{fig:softmax} mostra o fluxo da Softmax: os logits são
+expoenciados, normalizados e transformados em probabilidades que somam~1,
+além de um esboço da distribuição resultante para a tarefa binária.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small,
+  box/.style={draw, rounded corners=3pt, minimum width=2.0cm,
+              minimum height=0.7cm, align=center, fill=#1},
+  arr/.style={->, thick}
+]
+  % Step boxes
+  \node[box=blue!15]   (logits) at (0,0)   {Logits\\$z_1,z_2$};
+  \node[box=yellow!30] (exp)    at (3.2,0) {Exponencial\\$e^{z_1},e^{z_2}$};
+  \node[box=green!20]  (norm)   at (6.4,0) {Normalização\\$\div\sum e^{z_j}$};
+  \node[box=orange!30] (prob)   at (9.6,0) {Probabilidades\\$\hat{p}_1,\hat{p}_2$};
+
+  \draw[arr] (logits) -- (exp)  node[midway,above,font=\scriptsize] {$e^{(\cdot)}$};
+  \draw[arr] (exp)    -- (norm) node[midway,above,font=\scriptsize] {soma};
+  \draw[arr] (norm)   -- (prob) node[midway,above,font=\scriptsize] {$\in(0,1)$};
+
+  % Constraint label
+  \node[font=\scriptsize, below=0.15cm of prob]
+    {$\hat{p}_1+\hat{p}_2=1$};
+
+  % Mini bar chart (example: p_bolsa=0.87, p_calca=0.13)
+  \begin{scope}[shift={(3.8,-2.2)}]
+    \draw[fill=blue!40]  (0,0) rectangle (0.6, 1.74);
+    \draw[fill=red!40]   (0.8,0) rectangle (1.4, 0.26);
+    \draw[->] (-0.1,0) -- (1.6,0) node[right,font=\scriptsize] {};
+    \draw[->] (-0.1,0) -- (-0.1,2.1) node[above,font=\scriptsize] {$\hat{p}$};
+    \node[font=\scriptsize, below=2pt] at (0.3,0) {bolsa};
+    \node[font=\scriptsize, below=2pt] at (1.1,0) {calça};
+    \node[font=\scriptsize, above=1pt] at (0.3,1.74) {0{,}87};
+    \node[font=\scriptsize, above=1pt] at (1.1,0.26) {0{,}13};
+    \node[font=\scriptsize\itshape, below=0.5cm] at (0.65,0)
+      {Exemplo: $\mathbf{z}=(2{,}1;\,0{,}3)$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Fluxo da função Softmax: logits são expoenciados, somados e
+  normalizados para produzir probabilidades em $(0,1)$ que totalizam~1.
+  O gráfico de barras mostra o resultado para $\mathbf{z}=(2{,}1;\,0{,}3)$.}
+\label{fig:softmax}
+\end{figure}
 
 % ------ Pooling ------------------------------------------------
 \subsection{Operações de Pooling}
@@ -521,6 +702,84 @@ O GAP foi introduzido por Lin et al.\ \cite{lin2013network} como alternativa
 às camadas totalmente conectadas, eliminando a necessidade de camadas densas
 volumosas sobre o mapa de características e atuando como regularizador
 natural que reduz o risco de \emph{overfitting}.
+
+A Figura~\ref{fig:pooling} compara o Max Pooling (seleciona o valor máximo
+em cada janela $2\times2$) com o GAP (colapsa toda a dimensão espacial
+num único valor médio por canal).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize]
+\def\s{0.55}
+
+%% ---- Max Pooling ----
+\node[font=\small\bfseries] at (2.2*\s, 5.4*\s) {Max Pooling ($2\times2$, stride 2)};
+
+% 4x4 input
+\foreach \row in {0,1,2,3} {
+  \foreach \col in {0,1,2,3} {
+    \pgfmathsetmacro{\val}{int((\row*4+\col+1))}
+    \draw[fill=blue!10] (\col*\s, {(3-\row)*\s}) rectangle +(\s,\s);
+    \node at ({(\col+0.5)*\s},{(3-\row+0.5)*\s}) {\val};
+  }
+}
+% top-left 2x2 window (max=6)
+\draw[red!70, line width=1.2pt]
+  (0,2*\s) rectangle (2*\s,4*\s);
+% top-right window (max=8)
+\draw[green!60!black, line width=1.2pt]
+  (2*\s,2*\s) rectangle (4*\s,4*\s);
+% bottom-left (max=14)
+\draw[orange!80, line width=1.2pt]
+  (0,0) rectangle (2*\s,2*\s);
+% bottom-right (max=16)
+\draw[purple!60, line width=1.2pt]
+  (2*\s,0) rectangle (4*\s,2*\s);
+
+\node[font=\scriptsize] at (2*\s, -0.35) {Entrada $4\times4$};
+
+% Arrow
+\draw[->, thick] (4.3*\s, 2*\s) -- (5.2*\s, 2*\s);
+
+% 2x2 output
+\foreach \row/\col/\val/\clr in {
+    0/0/6/red!30, 0/1/8/green!30,
+    1/0/14/orange!30, 1/1/16/purple!20} {
+  \draw[fill=\clr] ({(5.5+\col)*\s},{(1-\row+0.5)*\s}) rectangle +(\s,\s);
+  \node at ({(5.5+\col+0.5)*\s},{(1-\row+1)*\s}) {\val};
+}
+\node[font=\scriptsize] at ({6.5*\s}, -0.35) {Saída $2\times2$};
+
+%% ---- GAP ----
+\node[font=\small\bfseries] at ({11.5*\s}, 5.4*\s) {Global Average Pooling};
+
+% Feature map (simplified as 3x3 with one channel)
+\foreach \row in {0,1,2} {
+  \foreach \col in {0,1,2} {
+    \pgfmathsetmacro{\val}{int(\row*3+\col+1)}
+    \draw[fill=teal!15] ({(8.5+\col)*\s},{(2-\row)*\s}) rectangle +(\s,\s);
+    \node at ({(8.5+\col+0.5)*\s},{(2-\row+0.5)*\s}) {\val};
+  }
+}
+\node[font=\scriptsize] at ({10*\s}, -0.35) {Canal $H\times W$};
+
+% Arrow
+\draw[->, thick] ({11.7*\s}, 1.5*\s) -- ({12.6*\s}, 1.5*\s);
+
+% Output scalar
+\draw[fill=teal!40] ({12.8*\s}, \s) rectangle +(\s, \s);
+\node at ({13.3*\s}, 1.5*\s) {5};
+\node[font=\scriptsize] at ({13.3*\s}, -0.35) {$g_c=5$};
+
+% Formula below
+\node[font=\scriptsize] at ({13.3*\s}, -0.75) {$\frac{1}{9}\sum_{i,j}F[i,j,c]$};
+\end{tikzpicture}
+\caption{Esquerda: Max Pooling $2\times2$ reduz mapa $4\times4\to2\times2$
+  retendo o valor máximo (destacado por cor) em cada janela.
+  Direita: GAP colapsa todo o canal $H\times W$ num único escalar $g_c$
+  via média global.}
+\label{fig:pooling}
+\end{figure}
 
 % ------ Função de Perda ----------------------------------------
 \subsection{Função de Perda: Entropia Cruzada Categórica}
@@ -729,6 +988,61 @@ computacional entre as duas abordagens é:
 
 Para $D_K = 3$ e $N \gg 1$, a redução é de aproximadamente $\mathbf{8\times}$,
 viabilizando o uso em dispositivos com restrições de memória e processamento.
+
+A Figura~\ref{fig:depthwise} compara visualmente a convolução padrão com a
+separável em profundidade, evidenciando a decomposição em dois passos
+independentes.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  blk/.style={draw, minimum width=1.4cm, minimum height=0.7cm,
+              align=center, rounded corners=2pt, fill=#1},
+  arr/.style={->, thick}
+]
+
+%% ---- Padrão (esquerda) ----
+\node[font=\small\bfseries] at (1.5, 3.2) {Convolução Padrão};
+
+\node[blk=blue!20]   (inp1) at (1.5, 2.2)  {Entrada\\$H\!\times\!W\!\times\!C$};
+\node[blk=orange!30] (std)  at (1.5, 1.1)  {Conv $D_K\!\times\!D_K$\\$\times N$ filtros};
+\node[blk=green!20]  (out1) at (1.5, 0.0)  {Saída\\$H'\!\times\!W'\!\times\!N$};
+
+\draw[arr] (inp1) -- (std);
+\draw[arr] (std)  -- (out1);
+
+\node[font=\scriptsize, right=0.1cm of std, text=gray]
+  {$D_K^2 C N D_F^2$ ops};
+
+%% ---- Separável (direita) ----
+\node[font=\small\bfseries] at (6.5, 3.2) {Convolução Separável};
+
+\node[blk=blue!20]   (inp2) at (6.5, 2.2)  {Entrada\\$H\!\times\!W\!\times\!C$};
+\node[blk=red!20]    (dw)   at (6.5, 1.3)  {Depthwise\\$D_K\!\times\!D_K\!\times\!C$};
+\node[blk=purple!20] (pw)   at (6.5, 0.4)  {Pointwise\\$1\!\times\!1\!\times\!N$};
+\node[blk=green!20]  (out2) at (6.5,-0.5)  {Saída\\$H'\!\times\!W'\!\times\!N$};
+
+\draw[arr] (inp2) -- (dw);
+\draw[arr] (dw)   -- (pw);
+\draw[arr] (pw)   -- (out2);
+
+\node[font=\scriptsize, right=0.1cm of dw, text=gray]
+  {$D_K^2 C D_F^2$ ops};
+\node[font=\scriptsize, right=0.1cm of pw, text=gray]
+  {$C N D_F^2$ ops};
+
+%% ---- Seta de comparação ----
+\draw[<->, dashed, gray] (2.3, 1.1) -- (5.7, 1.1)
+  node[midway, above, font=\scriptsize\bfseries, text=black]
+    {$\approx 8\times$ menos operações};
+
+\end{tikzpicture}
+\caption{Comparação entre a convolução padrão (esquerda) e a separável em
+  profundidade (direita). A separação em Depthwise + Pointwise reduz o custo
+  computacional em $\approx 8\times$ para kernels $3\times3$, justificando
+  seu uso nos modelos MobileNet e Xception.}
+\label{fig:depthwise}
+\end{figure}
 
 % ------ Batch Normalization ------------------------------------
 \subsection{Normalização em Lote (\textit{Batch Normalization})}
