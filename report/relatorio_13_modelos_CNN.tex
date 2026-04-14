@@ -27,6 +27,8 @@
 \usepackage{titlesec}
 \usepackage{parskip}
 \usepackage{underscore}  % permite _ em modo texto sem escapar
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,decorations.pathreplacing}
 
 \geometry{
   a4paper,
@@ -171,6 +173,149 @@ convolução até o otimizador e as funções estatísticas de replicabilidade.
 As referências utilizadas incluem obras seminais de aprendizado profundo
 \cite{lecun1998gradient,goodfellow2016deep,lecun2015deep} e artigos específicos
 de cada componente, detalhados em cada subseção.
+
+% ------ Backbone e Transfer Learning --------------------------
+\subsection{Backbone e Transfer Learning}
+\label{sec:backbone}
+
+No contexto deste projeto, \textbf{backbone} é a rede neural convolucional
+pré-treinada que serve como extrator de características visuais. Os 11 modelos
+de Transfer Learning utilizam backbones treinados no \textbf{ImageNet}
+\cite{deng2009imagenet} --- base com 1,2 milhão de imagens e 1.000 classes ---,
+cujos pesos são importados e \textbf{mantidos congelados}
+(\texttt{trainable = False}) durante o treinamento na tarefa de moda.
+
+A estratégia de \textbf{Transfer Learning} \cite{pan2009survey,yosinski2014transferable}
+parte da premissa de que características aprendidas em grandes conjuntos de dados
+gerais (bordas, texturas, formas, padrões de alto nível) são transferíveis a
+domínios específicos, mesmo com poucos dados de destino. Neste trabalho, com
+apenas 100 imagens de treino, o Transfer Learning é decisivo: treinar qualquer
+dessas arquiteturas do zero nessa quantidade de dados resultaria em
+\emph{overfitting} severo, ao passo que o backbone congelado fornece
+representações ricas sem custo de treinamento.
+
+A arquitetura completa de cada modelo de TL é composta de duas partes:
+
+\begin{enumerate}
+  \item \textbf{Backbone} (congelado): camadas convolucionais, Batch Normalization
+        e pooling do modelo pré-treinado, responsáveis por extrair um mapa rico
+        de características da imagem de entrada.
+  \item \textbf{Cabeça de classificação} (treinável): camadas densas adicionadas
+        sobre o backbone, que aprendem a mapear as características extraídas para
+        as duas classes do problema (bolsa e calça).
+\end{enumerate}
+
+A Figura~\ref{fig:arquitetura_tl} ilustra esse fluxo para os modelos de
+Transfer Learning avaliados neste projeto.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance = 0.35cm,
+  every node/.style = {font=\small},
+  frozen/.style = {
+    rectangle, rounded corners=4pt,
+    draw=blue!55!black, fill=blue!10,
+    text centered, minimum width=10.6cm,
+    minimum height=0.72cm, text width=10.1cm},
+  trainable/.style = {
+    rectangle, rounded corners=4pt,
+    draw=green!55!black, fill=green!10,
+    text centered, minimum width=10.6cm,
+    minimum height=0.72cm, text width=10.1cm},
+  io/.style = {
+    rectangle, rounded corners=4pt,
+    draw=gray!60!black, fill=gray!14,
+    text centered, minimum width=10.6cm,
+    minimum height=0.72cm, text width=10.1cm},
+  arrow/.style = {-{Stealth[length=6pt]}, thick},
+]
+
+%% Entrada
+\node[io] (input)
+  {Imagem de entrada \quad ($150\times150\times3$ \; ou \; $299\times299\times3$)};
+
+%% Backbone
+\node[frozen, below=0.5cm of input] (b1)
+  {\textbf{Backbone pré-treinado no ImageNet} \quad \texttt{trainable = False}};
+\node[frozen, below=of b1] (b2)
+  {Camadas convolucionais + Batch Normalization + Pooling};
+\node[frozen, below=of b2] (b3)
+  {MobileNetV2 $\cdot$ EfficientNetB0/B1/B2 $\cdot$ ResNet50 $\cdot$ DenseNet121};
+\node[frozen, below=of b3] (b4)
+  {MobileNetV3Small/Large $\cdot$ NASNetMobile $\cdot$ InceptionV3 $\cdot$ Xception};
+\node[frozen, below=of b4] (b5)
+  {\textit{Extrai características visuais gerais: bordas, texturas e formas}};
+
+%% Cabeça de classificação
+\node[trainable, below=0.5cm of b5] (gap)
+  {\texttt{GlobalAveragePooling2D} \enspace --- \enspace
+   compressão espacial $\to$ vetor $\mathbf{g}\in\mathbb{R}^{C}$};
+\node[trainable, below=of gap] (d1)
+  {\texttt{Dense(128, activation='relu')}};
+\node[trainable, below=of d1] (d2)
+  {\texttt{Dense(64, activation='relu')}};
+\node[trainable, below=of d2] (d3)
+  {\texttt{Dense(2, activation='softmax')} \enspace --- \enspace saída binária};
+
+%% Saída
+\node[io, below=0.5cm of d3] (output)
+  {$\hat{p}_{\text{bolsa}}$ \enspace e \enspace $\hat{p}_{\text{calça}}$
+   \qquad $\hat{y} = \arg\max_{c}\,\hat{p}_c$};
+
+%% Setas
+\draw[arrow] (input) -- (b1);
+\draw[arrow] (b5)    -- (gap);
+\draw[arrow] (d3)    -- (output);
+
+%% Chave: Backbone
+\draw[decorate,
+      decoration={brace, amplitude=7pt, raise=4pt},
+      blue!60!black, thick]
+  ([xshift=0.15cm]b1.north east) -- ([xshift=0.15cm]b5.south east)
+  node[midway, right=13pt, align=left, text width=2.6cm, blue!70!black]
+    {\textbf{Backbone}\\\textit{congelado}\\(ImageNet)};
+
+%% Chave: Cabeça
+\draw[decorate,
+      decoration={brace, amplitude=7pt, raise=4pt},
+      green!60!black, thick]
+  ([xshift=0.15cm]gap.north east) -- ([xshift=0.15cm]d3.south east)
+  node[midway, right=13pt, align=left, text width=2.6cm, green!70!black]
+    {\textbf{Cabeça de}\\\textbf{classific.}\\\textit{treinável}};
+
+\end{tikzpicture}
+\caption{Arquitetura dos modelos de Transfer Learning: backbone pré-treinado
+         e congelado (azul) responsável pela extração de características, seguido
+         da cabeça de classificação treinável (verde) que aprende a distinguir
+         bolsas de calças. Os 11 backbones avaliados estão listados nas camadas
+         intermediárias.}
+\label{fig:arquitetura_tl}
+\end{figure}
+
+Cada backbone possui características arquiteturais distintas que determinam
+seu custo computacional e capacidade de representação:
+
+\begin{table}[H]
+\centering
+\caption{Características dos backbones avaliados neste projeto}
+\label{tab:backbone_resumo}
+\small
+\begin{tabular}{llcc}
+\toprule
+\textbf{Backbone} & \textbf{Inovação principal} & \textbf{Resolução} & \textbf{Referência} \\
+\midrule
+MobileNetV2          & Inverted residuals + depthwise conv     & $150\times150$ & \cite{sandler2018mobilenetv2} \\
+EfficientNetB0/B1/B2 & Compound scaling (profund., larg., res.)& $150\times150$ & \cite{tan2019efficientnet}    \\
+ResNet50             & Conexões residuais (\emph{skip connections}) & $150\times150$ & \cite{he2016deep}          \\
+DenseNet121          & Conexões densas entre todas as camadas  & $150\times150$ & \cite{huang2017densely}       \\
+MobileNetV3S/L       & SE blocks + ativação hard-swish         & $150\times150$ & \cite{howard2019searching}    \\
+NASNetMobile         & Arquitetura por busca neural (NAS)      & $150\times150$ & \cite{zoph2018learning}       \\
+InceptionV3          & Filtros em múltiplas escalas em paralelo& $299\times299$ & \cite{szegedy2016rethinking}  \\
+Xception             & Depthwise separable em toda a rede      & $299\times299$ & \cite{chollet2017xception}    \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 % ------ Convolução 2D ------------------------------------------
 \subsection{Operação de Convolução 2D}
@@ -1679,6 +1824,22 @@ Para cenários com restrições de hardware, o \textbf{MobileNetV2} ou o
 \addcontentsline{toc}{section}{Referências}
 
 \begin{thebibliography}{99}
+
+\bibitem{deng2009imagenet}
+J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, L. Fei-Fei,
+``ImageNet: A large-scale hierarchical image database,''
+\emph{CVPR}, pp.~248--255, 2009.
+
+\bibitem{pan2009survey}
+S. J. Pan, Q. Yang,
+``A survey on transfer learning,''
+\emph{IEEE Transactions on Knowledge and Data Engineering},
+vol.~22, no.~10, pp.~1345--1359, 2010.
+
+\bibitem{yosinski2014transferable}
+J. Yosinski, J. Clune, Y. Bengio, H. Lipson,
+``How transferable are features in deep neural networks?''
+\emph{NeurIPS}, vol.~27, pp.~3320--3328, 2014.
 
 \bibitem{lecun1998gradient}
 Y. LeCun, L. Bottou, Y. Bengio, P. Haffner,
