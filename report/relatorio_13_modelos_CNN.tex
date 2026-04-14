@@ -205,6 +205,34 @@ que introduz não-linearidade ao modelo zerando todos os valores negativos:
 A ReLU é computacionalmente eficiente e mitiga o problema do gradiente desvanecente
 em redes profundas, sendo a ativação padrão em todas as camadas ocultas dos 13 modelos.
 
+\subsubsection{Logit --- Saída Linear Bruta da Rede}
+\label{sec:logit}
+
+Antes de aplicar qualquer função de ativação, a última camada densa da rede
+(\texttt{Dense(2)}) computa uma combinação linear dos valores recebidos:
+
+\begin{equation}
+  z_c = \mathbf{w}_c^\top \mathbf{h} + b_c, \qquad c = 1, \ldots, C
+  \label{eq:logit}
+\end{equation}
+
+onde $\mathbf{h}$ é o vetor de ativações da camada anterior (saída do
+\texttt{Dense(64)}), $\mathbf{w}_c$ é o vetor de pesos associado à classe $c$
+e $b_c$ é o viés correspondente.
+
+O valor $z_c$ é chamado de \textbf{logit} da classe $c$. O termo vem da
+função \emph{logit} da estatística ($\log\frac{p}{1-p}$), mas no contexto
+de redes neurais designa genericamente qualquer \textbf{pontuação linear
+irrestrita} produzida antes de uma função de ativação --- podendo assumir
+qualquer valor real ($z_c \in \mathbb{R}$), positivo ou negativo, sem
+interpretação direta de probabilidade.
+
+O vetor de logits $\mathbf{z} = (z_1, z_2)$ para a tarefa binária
+deste trabalho representa, portanto, o \emph{grau de afinidade} bruto
+que a rede atribui a cada classe. Um logit maior indica maior tendência
+da rede em classificar a entrada naquela classe, mas apenas após a
+Softmax esses valores se tornam probabilidades comparáveis e somam 1.
+
 \subsubsection{Softmax --- Conversão para Probabilidade}
 
 A camada de saída de \textbf{todos os 13 modelos} utiliza a função \textbf{Softmax},
@@ -293,6 +321,115 @@ da classe verdadeira $c_i^*$ contribui para a soma:
 A perda é minimizada quando $\hat{p}_{i,c_i^*}\to 1$, isto é, quando o modelo
 atribui probabilidade máxima à classe correta. O Early Stopping monitora
 $\mathcal{L}$ na faixa de treino com \texttt{patience}~$= 5$.
+
+% ------ Exemplo Numérico ---------------------------------------
+\subsection{Exemplo Numérico: Softmax, Probabilidade e Função de Perda}
+\label{sec:exemplo_numerico}
+
+Para concretizar a relação entre logits, Softmax e Entropia Cruzada, considere uma
+imagem de \textbf{bolsa} (classe verdadeira $c^* = \text{bolsa}$, codificação
+\emph{one-hot} $\mathbf{y} = [1,\;0]$) passando pela camada de saída
+\texttt{Dense(2, activation='softmax')}, que produz dois logits
+$\mathbf{z} = (z_{\text{bolsa}},\; z_{\text{calça}})$.
+Analisamos três cenários que ilustram como a Softmax converte logits em
+probabilidades e como a Entropia Cruzada penaliza cada situação.
+
+\vspace{0.8em}
+\noindent\textbf{Cenário~1 --- Predição correta (modelo confiante):}
+\[
+  \mathbf{z} = (2{,}10;\; 0{,}30)
+\]
+\begin{align*}
+  \hat{p}_{\text{bolsa}}
+    &= \frac{e^{2{,}10}}{e^{2{,}10}+e^{0{,}30}}
+     = \frac{8{,}166}{8{,}166 + 1{,}350}
+     = \frac{8{,}166}{9{,}516}
+     \approx 0{,}858 \\[6pt]
+  \hat{p}_{\text{calça}}
+    &= \frac{e^{0{,}30}}{9{,}516}
+     = \frac{1{,}350}{9{,}516}
+     \approx 0{,}142
+\end{align*}
+\[
+  \mathcal{L} = -\log(\hat{p}_{c^*}) = -\log(0{,}858) \approx \mathbf{0{,}153}
+\]
+A perda é baixa: o modelo atribui 85,8\,\% de probabilidade à classe
+correta. O gradiente resultante é pequeno e o Adam realiza uma atualização
+sutil dos pesos.
+
+\vspace{0.8em}
+\noindent\textbf{Cenário~2 --- Predição incerta (modelo sem confiança):}
+\[
+  \mathbf{z} = (0{,}50;\; 0{,}50)
+\]
+\begin{align*}
+  \hat{p}_{\text{bolsa}}
+    &= \frac{e^{0{,}50}}{e^{0{,}50}+e^{0{,}50}}
+     = \frac{1{,}649}{3{,}297}
+     = 0{,}500 \\[6pt]
+  \hat{p}_{\text{calça}}
+    &= \frac{1{,}649}{3{,}297}
+     = 0{,}500
+\end{align*}
+\[
+  \mathcal{L} = -\log(0{,}500) \approx \mathbf{0{,}693}
+\]
+Logits iguais produzem distribuição uniforme --- máxima incerteza.
+A perda moderada indica que o modelo ainda não aprendeu a distinguir
+as classes, situação típica das primeiras épocas de treinamento.
+
+\vspace{0.8em}
+\noindent\textbf{Cenário~3 --- Predição errada (modelo confiante na classe errada):}
+\[
+  \mathbf{z} = (-1{,}20;\; 2{,}50)
+\]
+\begin{align*}
+  \hat{p}_{\text{bolsa}}
+    &= \frac{e^{-1{,}20}}{e^{-1{,}20}+e^{2{,}50}}
+     = \frac{0{,}301}{0{,}301 + 12{,}182}
+     = \frac{0{,}301}{12{,}483}
+     \approx 0{,}024 \\[6pt]
+  \hat{p}_{\text{calça}}
+    &= \frac{12{,}182}{12{,}483}
+     \approx 0{,}976
+\end{align*}
+\[
+  \mathcal{L} = -\log(0{,}024) \approx \mathbf{3{,}730}
+\]
+A perda é alta: apenas 2,4\,\% de probabilidade foi atribuída à classe
+correta. O gradiente é grande, forçando o Adam a realizar uma correção
+expressiva nos pesos $\theta$ da rede.
+
+\vspace{1em}
+A Tabela~\ref{tab:exemplo_loss} resume os três cenários e evidencia a
+relação monotônica entre \emph{confiança na classe errada} e \emph{magnitude da perda}:
+
+\begin{table}[H]
+\centering
+\caption{Resumo do exemplo numérico --- logits, probabilidades Softmax e Entropia
+         Cruzada para uma imagem de bolsa ($\mathbf{y}=[1,0]$)}
+\label{tab:exemplo_loss}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Cenário}
+  & $z_{\text{bolsa}}$ & $z_{\text{calça}}$
+  & $\hat{p}_{\text{bolsa}}$ & $\hat{p}_{\text{calça}}$
+  & $\mathcal{L}$ & \textbf{Situação} \\
+\midrule
+Predição correta  & $2{,}10$  & $0{,}30$ & $0{,}858$ & $0{,}142$ & $0{,}153$ & \checkmark \\
+Predição incerta  & $0{,}50$  & $0{,}50$ & $0{,}500$ & $0{,}500$ & $0{,}693$ & $\sim$     \\
+Predição errada   & $-1{,}20$ & $2{,}50$ & $0{,}024$ & $0{,}976$ & $3{,}730$ & $\times$   \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Interpretação geral:} à medida que o treinamento progride,
+o Adam minimiza $\mathcal{L}$ ajustando os pesos para que o logit da classe
+correta cresça e o da classe errada diminua, empurrando
+$\hat{p}_{c^*}\to 1$ e $\mathcal{L}\to 0$.
+Para o modelo \emph{perfeito} ($\hat{p}_{c^*}=1$),
+a perda seria $-\log(1) = 0$; para o modelo totalmente errado
+($\hat{p}_{c^*}\to 0$), a perda tenderia a $+\infty$.
 
 % ------ Adam ---------------------------------------------------
 \subsection{Otimizador Adam}
