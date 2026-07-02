@@ -14,9 +14,9 @@ This is a Brazilian academic research project (TCC — Undergraduate Thesis) by 
 
 ```
 notebooks/   → Main Jupyter notebook (run on Google Colab)
-data/        → Dataset: 100 train + 60 test images
-  train/bags/        (50 bag images)
-  train/pants/       (50 pants images)
+data/        → Dataset: 1908 train + 60 test images
+  train/bags/        (954 bag images)
+  train/pants/       (954 pants images)
   test/bags/         (30 bag images)
   test/pants/        (30 pants images)
 results/     → All experiment outputs

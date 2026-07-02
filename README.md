@@ -26,12 +26,12 @@ Classificação binária de imagens de moda:
 
 | Conjunto | Classe | Quantidade |
 |----------|--------|------------|
-| Treino | Bolsas | 50 imagens |
-| Treino | Calças | 50 imagens |
+| Treino | Bolsas | 954 imagens |
+| Treino | Calças | 954 imagens |
 | Teste | Bolsas | 30 imagens |
 | Teste | Calças | 30 imagens |
 
-**Total:** 100 imagens de treino · 60 imagens de teste
+**Total:** 1.908 imagens de treino · 60 imagens de teste
 
 ---
 
@@ -62,8 +62,8 @@ Classificação binária de imagens de moda:
 │   └── cnn_fashion_classification.ipynb   # Notebook principal (Google Colab)
 ├── data/
 │   ├── train/
-│   │   ├── bags/                          # 50 imagens de treino (bolsas)
-│   │   └── pants/                         # 50 imagens de treino (calças)
+│   │   ├── bags/                          # 954 imagens de treino (bolsas)
+│   │   └── pants/                         # 954 imagens de treino (calças)
 │   └── test/
 │       ├── bags/                          # 30 imagens de teste (bolsas)
 │       └── pants/                         # 30 imagens de teste (calças)
